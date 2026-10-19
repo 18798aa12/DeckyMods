@@ -300,9 +300,13 @@ export function SourcePanel({ game, busy, run, onJob, onView }: Props) {
         </>
       )}
       <Note>
-        普通会员需在 Nexus 网页确认下载：登录后选 Slow Download / MOD Manager
-        Download，等待完成后允许 NXM
+        普通会员需在 Nexus 网页确认下载：请登录与 API 绑定相同的 Nexus 账号，
+        选 Slow Download / MOD Manager Download，等待完成后允许 NXM
         打开；也可手动下载压缩包后导入。下载与检查完成后仍需确认安装预览。
+      </Note>
+      <Note>
+        绑定 API 不会替网页登录。Steam 内置浏览器与 Chrome / Firefox
+        可能不共享登录状态，网页仍可能要求登录。Premium 可通过 API 获取下载链接。
       </Note>
       </> : <Note>
         尚未验证此游戏的 Nexus 对应页面，暂不提供编号、网址或 NXM 下载。

@@ -270,6 +270,26 @@ class SteamDiscovery:
         self.issues = tuple(dict.fromkeys(issues))
         return result
 
+    def discover_app(self, app_id: str) -> dict | None:
+        """Validate exactly one pinned AppID when a reviewed row selects another variant."""
+        if not valid_app_id(app_id):
+            raise ModsError("Steam 游戏身份无效")
+        libraries, issues = self._libraries()
+        for library in libraries:
+            try:
+                found = self._installed(library, app_id)
+                if found is None or is_runtime_tool(app_id, found["name"]):
+                    continue
+                running, uncertain = _running_apps({app_id: Path(found["path"])})
+                return {
+                    **found,
+                    "running": found["running"] or app_id in running or app_id in uncertain,
+                }
+            except (OSError, UnicodeError, ValueError):
+                issues.append("部分游戏的 Steam 安装清单或目录无效，已保留原身份记录")
+        self.issues = tuple(dict.fromkeys([*self.issues, *issues]))
+        return None
+
     def resolve_optional(self, game_id: str) -> dict | None:
         """Return an installed mapping, or None when Steam cannot validate it."""
         return next(

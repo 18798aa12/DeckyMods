@@ -7,7 +7,7 @@ import { formatBytes, openNexus, safeError } from "./state";
 import type { Game, Job, Plan, RunAction } from "./types";
 const phaseLabels: Record<Job["phase"], string> = {
   queued: "排队中",
-  awaiting_browser: "等待网页确认下载",
+  awaiting_browser: "等待网页授权所选文件",
   downloading: "下载中",
   scanning: "检查压缩包",
   ready: "等待安装确认",
@@ -63,6 +63,13 @@ export function JobPanel({ jobs, games, busy, run, onJob }: Props) {
                   </>
                 )}
               </Note>
+              {job.phase === "awaiting_browser" && (
+                <Note>
+                  正在等待所选文件的网页授权，不代表 API Key 无效。
+                  请在网页登录与 API 绑定相同的 Nexus 账号并确认下载；
+                  Steam 内置浏览器与 Chrome / Firefox 可能需要分别登录。
+                </Note>
+              )}
               {job.bytes_total > 0 && job.phase === "downloading" && (
                 <PanelSectionRow>
                   <progress

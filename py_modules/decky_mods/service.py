@@ -12,6 +12,7 @@ from .archive import extract_archive
 from .catalog import load_catalog
 from .deployment import Deployment
 from .errors import ModsError
+from .game_identities import GameIdentities
 from .game_roots import GameRoots
 from .gamefs import fingerprint
 from .imports import LocalArchives
@@ -43,20 +44,27 @@ class Service:
         self.home = (home or Path.home()).resolve()
         private_directory(directory)
         self.discovery = discovery or SteamDiscovery(load_catalog(plugin_dir), self.home)
-        self.roots = GameRoots(directory / "game-roots", self.discovery, self.home)
+        self.engine = Deployment(directory / "deployment")
+        self.jobs = Jobs(directory / "tasks")
+        identities = GameIdentities(
+            directory / "game-identities",
+            self.discovery,
+            self.engine.db,
+            self.jobs,
+            directory / "game-roots/roots.json",
+        )
+        self.roots = GameRoots(directory / "game-roots", identities, self.home)
         self.nexus = nexus or NexusClient(directory / "account")
         self.handler = handler or NxmHandler(directory / "receiver", plugin_dir, self.home)
         receiver_preference = read_json(directory / "receiver-preferences.json") or {}
         if receiver_preference.get("enabled") is True:
             self.handler.set_enabled(True)
-        self.engine = Deployment(directory / "deployment")
         self.mod_details = ModDetails(directory / "mod-details", self.nexus)
-        self.jobs = Jobs(directory / "tasks")
         self.archives = LocalArchives(self.home)
         self.launch_options = LaunchOptions(directory / "launch-options")
         self.resident = RESettings(directory / "resident-settings")
         self.updates = UpdateManager(
-            plugin_dir, directory / "updates", "0.2.3", source=GITHUB_SOURCE
+            plugin_dir, directory / "updates", "0.2.4", source=GITHUB_SOURCE
         )
         self.downloads = directory / "downloads"
         private_directory(self.downloads)
@@ -66,7 +74,7 @@ class Service:
 
     def get_status(self) -> dict:
         return {
-            "version": "0.2.3",
+            "version": "0.2.4",
             "platform_supported": platform.system() == "Linux",
             "auth": self.nexus.status(),
             "jobs": self.get_jobs(),
@@ -452,7 +460,7 @@ class Service:
         for game in self.list_games():
             if game["installed"]:
                 try:
-                    if not game["running"]:
+                    if not game["running"] and not game.get("updating"):
                         self.engine.recover(game)
                         self.resident.engine.recover(game)
                 except ModsError as error:

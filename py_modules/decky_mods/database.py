@@ -44,6 +44,58 @@ class Database:
             row = connection.execute("SELECT data FROM games WHERE id=?", (game_id,)).fetchone()
         return json.loads(row[0]) if row else None
 
+    def referenced_game_ids(self, *, limit: int = 4096) -> set[str]:
+        """Read ownership references without loading deployment paths or MOD payloads."""
+        with self.connection() as connection:
+            rows = connection.execute(
+                "SELECT id FROM games UNION SELECT game_id FROM transactions "
+                "WHERE phase IN ('applying','recovery') LIMIT ?",
+                (limit + 1,),
+            ).fetchall()
+            if len(rows) > limit:
+                raise ModsError("游戏身份记录数量过多，请保留 MOD 备份后检查状态库")
+            references = [row[0] for row in rows]
+            references += self._plan_game_ids(connection, limit)
+        if any(not isinstance(ident, str) for ident in references):
+            raise ModsError("游戏身份引用无效，请保留安装预览和 MOD 记录后检查状态库")
+        if len(set(references)) > limit:
+            raise ModsError("游戏身份记录数量过多，请保留 MOD 备份后检查状态库")
+        return set(references)
+
+    @staticmethod
+    def _plan_game_ids(connection: sqlite3.Connection, limit: int) -> list[str]:
+        """SQLite JSON avoids payload copies; older builds use one bounded row at a time."""
+        maximum, budget = 128 * 1024**2, 256 * 1024**2
+        native = True
+        try:
+            rows = connection.execute(
+                "SELECT length(CAST(data AS BLOB)), "
+                "CASE WHEN length(CAST(data AS BLOB)) <= ? "
+                "THEN json_extract(data,'$.game_id') END FROM plans LIMIT ?",
+                (maximum, limit + 1),
+            )
+        except sqlite3.OperationalError as error:
+            if "no such function: json_extract" not in str(error):
+                raise
+            native = False
+            rows = connection.execute(
+                "SELECT length(CAST(data AS BLOB)), id FROM plans LIMIT ?", (limit + 1,)
+            )
+        result = []
+        for index, (size, value) in enumerate(rows):
+            budget -= size
+            if index >= limit or size > maximum or budget < 0:
+                raise ModsError("安装预览记录过多或太大，请保留 MOD 备份后检查状态库")
+            if not native:
+                raw = connection.execute("SELECT data FROM plans WHERE id=?", (value,)).fetchone()
+                try:
+                    plan = json.loads(raw[0])
+                    value = plan["game_id"]
+                except (ValueError, TypeError, KeyError, RecursionError):
+                    raise ModsError("安装预览身份记录无效，请保留状态库后检查") from None
+            result.append(value)
+        return result
+
     def plan(self, plan_id: str) -> dict:
         with self.connection() as connection:
             row = connection.execute("SELECT data FROM plans WHERE id=?", (plan_id,)).fetchone()

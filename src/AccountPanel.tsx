@@ -31,9 +31,10 @@ export function AccountPanel({
     <PanelSection title="Nexus 账号">
       <Note>
         {auth.connected
-          ? `${auth.name ?? "已绑定"} · ${auth.premium ? "Premium" : "普通会员"}`
+          ? `${auth.name ?? "账号已验证"} · ${auth.premium ? "Premium" : "普通会员"}`
           : "未绑定 Nexus 账号 · 本地压缩包无需登录"}
       </Note>
+      {auth.connected && <Note>API 已绑定 · 网页登录由浏览器管理</Note>}
       <Action
         onClick={() => {
           setExpanded(!expanded);
@@ -51,6 +52,11 @@ export function AccountPanel({
           </Note>
           <Note>
             不绑定也可在网页下载后导入本地压缩包。插件不收集账号密码或浏览器 Cookie。
+          </Note>
+          <Note>
+            API Key 用于验证账号和查询 MOD 信息，不会替浏览器登录 Nexus。
+            普通会员还需在网页授权所选文件；Premium 可通过 API 获取下载链接。
+            网页请登录与 API 绑定相同的 Nexus 账号。
           </Note>
           <Action
             onClick={() => {
@@ -86,7 +92,7 @@ export function AccountPanel({
             disabled={busy || !key.trim()}
             onClick={() => {
               void run(
-                "账号已绑定",
+                "API 已绑定",
                 () => backend.bindAccount(key.trim()),
                 (next) => {
                   setKey("");

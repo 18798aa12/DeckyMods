@@ -59,6 +59,7 @@ describe("Nexus personal API key help", () => {
   it("never fills or renders a stored key from account status", () => {
     const statusWithUnexpectedField = { ...connected, api_key: "stored-secret-sentinel" };
     renderPanel(statusWithUnexpectedField); expand();
+    expect(screen.getByText("API 已绑定 · 网页登录由浏览器管理")).toBeTruthy();
     expect((screen.getByLabelText("Nexus API Key") as HTMLInputElement).value).toBe("");
     expect(document.body.textContent).not.toContain("stored-secret-sentinel");
     expect(document.querySelector('[value="stored-secret-sentinel"]')).toBeNull();

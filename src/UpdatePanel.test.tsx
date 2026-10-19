@@ -27,6 +27,16 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.resetAllMocks(); vi.useRealTimers(); });
 
 describe("signed plugin updates", () => {
+  it("clears a failed status read after polling recovers", async () => {
+    vi.useFakeTimers();
+    mocks.getUpdateStatus.mockRejectedValueOnce(new Error("temporary outage")).mockResolvedValue(available);
+    render(<UpdatePanel busy={false} run={run} />);
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.getByRole("alert").textContent).toContain("无法读取更新状态");
+    await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
+    expect(screen.getByText("可更新至 0.2.0")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
   it("unlocks when the shared action guard declines a pending operation", async () => {
     mocks.getUpdateStatus.mockResolvedValue(available);
     const declined: RunAction = async () => null;

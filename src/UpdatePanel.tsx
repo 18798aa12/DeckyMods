@@ -6,6 +6,8 @@ import { backend } from "./rpc";
 import { styles } from "./styles";
 import type { RunAction, UpdateStatus } from "./types";
 
+const READ_ERROR = "无法读取更新状态，请重新打开插件后重试。";
+
 interface Props {
   readonly busy: boolean;
   readonly run: RunAction;
@@ -31,9 +33,10 @@ export function UpdatePanel({ busy, run }: Props) {
         const next = await backend.getUpdateStatus();
         if (!alive.current || generation !== revision.current) return;
         setStatus(next);
+        setError((current) => current === READ_ERROR ? null : current);
         if (!edited.current) setSource(next.source ?? "");
       } catch {
-        if (alive.current && generation === revision.current) setError("无法读取更新状态，请重新打开插件后重试。");
+        if (alive.current && generation === revision.current) setError(READ_ERROR);
       }
     };
     void refresh();

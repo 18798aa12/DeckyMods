@@ -20,7 +20,7 @@ API_HOST = "api.nexusmods.com"
 MAX_DOWNLOAD = 8 * 1024**3
 MAX_JSON = 8 * 1024**2
 REDIRECTS = {301, 302, 303, 307, 308}
-BASE_HEADERS = {"User-Agent": "DeckyMods/0.2.12", "Accept-Encoding": "identity"}
+BASE_HEADERS = {"User-Agent": "DeckyMods/0.2.13", "Accept-Encoding": "identity"}
 
 
 def validate_url(url: str, *, api: bool) -> SplitResult:
@@ -182,9 +182,18 @@ class SafeTransport:
     def json(self, url: str, headers: dict[str, str]) -> dict | list:
         with self._open(url, {**BASE_HEADERS, **headers}, api=True) as response:
             try:
+                length = response.getheader("Content-Length")
+                if length is not None:
+                    length = length.strip(" \t")
+                if length is not None and (
+                    not length.isascii() or not length.isdecimal() or int(length) > MAX_JSON
+                ):
+                    raise ModsError("Nexus 返回的数据长度无效或过大")
                 raw = response.read(MAX_JSON + 1)
                 if len(raw) > MAX_JSON:
                     raise ModsError("Nexus 返回的数据过大")
+                if length is not None and len(raw) != int(length):
+                    raise ValueError("Incomplete response")
                 result = json.loads(raw)
                 if not isinstance(result, (dict, list)):
                     raise ValueError
@@ -214,8 +223,8 @@ class SafeTransport:
                 fd, name = tempfile.mkstemp(prefix=".download-", dir=destination.parent)
                 temporary = Path(name)
                 done = 0
-                progress(0, total)
                 with os.fdopen(fd, "wb") as output:
+                    progress(0, total)
                     while True:
                         if cancel.is_set():
                             raise ModsError("下载已取消")

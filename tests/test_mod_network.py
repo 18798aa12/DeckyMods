@@ -1,5 +1,7 @@
+import errno
 import http.client
 import io
+import os
 import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -22,6 +24,55 @@ def test_json_bounds_and_parse_errors(monkeypatch):
     monkeypatch.setattr(transport, "_once", lambda *_: Response(b"{} "))
     with pytest.raises(ModsError, match="过大"):
         transport.json("https://api.nexusmods.com/v1/games.json", {})
+
+
+@pytest.mark.parametrize("length", ["100", "invalid", "-1"])
+def test_json_rejects_invalid_or_incomplete_declared_length(monkeypatch, length):
+    transport = SafeTransport()
+    response = Response(b'{"ok":true}', headers={"Content-Length": length})
+    monkeypatch.setattr(transport, "_once", lambda *_: response)
+    with pytest.raises(ModsError):
+        transport.json("https://api.nexusmods.com/json", {})
+    assert response.closed
+
+
+def test_initial_progress_failure_closes_temporary_descriptor(tmp_path, monkeypatch):
+    import decky_mods.network as network
+
+    original = network.tempfile.mkstemp
+    descriptors = []
+
+    def track(*args, **kwargs):
+        descriptor, name = original(*args, **kwargs)
+        descriptors.append(descriptor)
+        return descriptor, name
+
+    response = Response(b"payload")
+    transport = SafeTransport()
+    monkeypatch.setattr(network.tempfile, "mkstemp", track)
+    monkeypatch.setattr(transport, "_once", lambda *_: response)
+
+    def progress(*_):
+        raise RuntimeError("synthetic callback failure")
+
+    with pytest.raises(RuntimeError):
+        transport.download(
+            "https://cf-files.nexusmods.com/file.zip",
+            tmp_path / "file.zip",
+            threading.Event(),
+            progress,
+        )
+    try:
+        with pytest.raises(OSError) as error:
+            os.fstat(descriptors[0])
+        assert error.value.errno == errno.EBADF
+    finally:
+        try:
+            os.close(descriptors[0])
+        except OSError as error:
+            assert error.errno == errno.EBADF
+    assert response.closed
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_public_dns_error_is_sanitized(monkeypatch):
@@ -391,8 +442,11 @@ def live_keepalive_transport(monkeypatch):
         def do_GET(self):
             status = 200
             headers = {}
-            if self.path == "/json":
+            if self.path in ("/json", "/json-ows"):
                 body = b'{"ok":true}'
+            elif self.path == "/truncated-json":
+                body = b'{"ok":true}'
+                self.close_connection = True
             elif self.path == "/badjson":
                 body = b"private invalid response"
             elif self.path == "/forbidden":
@@ -407,7 +461,14 @@ def live_keepalive_transport(monkeypatch):
                 body = b"archive payload"
             self.send_response(status)
             self.send_header(
-                "Content-Length", "20" if self.path == "/truncated" else str(len(body))
+                "Content-Length",
+                str(len(body)) + " \t"
+                if self.path == "/json-ows"
+                else "100"
+                if self.path == "/truncated-json"
+                else "20"
+                if self.path == "/truncated"
+                else str(len(body)),
             )
             for key, value in headers.items():
                 self.send_header(key, value)
@@ -441,12 +502,21 @@ def live_keepalive_transport(monkeypatch):
         thread.join(timeout=3)
 
 
-def test_real_http11_json_response_stays_open_and_cleanup_owned(live_keepalive_transport):
+@pytest.mark.parametrize("path", ["json", "json-ows"])
+def test_real_http11_json_response_stays_open_and_cleanup_owned(live_keepalive_transport, path):
     transport, connections = live_keepalive_transport
-    assert transport.json("https://api.nexusmods.com/json", {"apikey": "dummy-test-value"}) == {
+    assert transport.json("https://api.nexusmods.com/" + path, {"apikey": "dummy-test-value"}) == {
         "ok": True
     }
     assert len(connections) == 1
+    assert connections[0].sock is None
+    assert connections[0].close_calls == 1
+
+
+def test_real_http11_truncated_json_is_rejected_and_socket_closed(live_keepalive_transport):
+    transport, connections = live_keepalive_transport
+    with pytest.raises(ModsError):
+        transport.json("https://api.nexusmods.com/truncated-json", {})
     assert connections[0].sock is None
     assert connections[0].close_calls == 1
 

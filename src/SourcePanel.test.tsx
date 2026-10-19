@@ -79,6 +79,22 @@ describe("explicit generic root archive installation", () => {
     fireEvent.click(screen.getByRole("button", { name: "选择本地 MOD 压缩包" }));
     await waitFor(() => expect(mocks.importArchive).toHaveBeenCalledWith("second", "/home/deck/Downloads/demo.zip", "demo"));
   });
+  it("supports local root imports for unmapped Steam games without inventing Nexus links", async () => {
+    const unknown: Game = { ...game, id: "steam-2358720", name: "Black Myth: Wukong", nexus_domain: "" };
+    renderPanel(unknown);
+    expect(screen.queryByLabelText("MOD 编号或 Nexus 网址")).toBeNull();
+    expect(screen.queryByLabelText("手动接收 NXM 链接（可选）")).toBeNull();
+    expect(screen.queryByRole("button", { name: "查找 MOD" })).toBeNull();
+    expect(screen.getByText(/尚未验证此游戏的 Nexus 对应页面/)).toBeTruthy();
+    expect((screen.getByRole("button", { name: "选择本地 MOD 压缩包" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByLabelText("按游戏根目录安装（未适配游戏）"));
+    expect(screen.getByRole("button", { name: "自动定位 Steam 游戏根目录" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "手动选择游戏根目录" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "选择本地 MOD 压缩包" }));
+    await waitFor(() => expect(mocks.importArchive).toHaveBeenCalledWith(unknown.id, "/home/deck/Downloads/demo.zip", "demo", "game_root"));
+    expect(mocks.resolveMod).not.toHaveBeenCalled();
+    expect(mocks.acceptNxm).not.toHaveBeenCalled();
+  });
   it("blocks root choice while the game is running", () => {
     renderPanel({ ...game, running: true });
     expect((screen.getByLabelText("按游戏根目录安装（未适配游戏）") as HTMLInputElement).disabled).toBe(true);

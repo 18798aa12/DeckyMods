@@ -36,8 +36,10 @@ export function SourcePanel({ game, busy, run, onJob, onView }: Props) {
   const mounted = useRef(true);
   const visible = useQuickAccessVisible();
   const writeBlocked = busy || game.running || Boolean(game.updating);
+  const hasNexusMapping = Boolean(game.nexus_domain.trim());
   const installBlocked = writeBlocked || Boolean(picking) || !game.installed ||
-    !game.path?.startsWith("/") || Boolean(game.root_error);
+    !game.path?.startsWith("/") || Boolean(game.root_error) ||
+    (!hasNexusMapping && game.adapter === "catalog" && !rootInstall);
   const useGameRoot = game.adapter === "catalog" && rootInstall;
   useEffect(() => {
     setRootInstall(false);
@@ -45,7 +47,7 @@ export function SourcePanel({ game, busy, run, onJob, onView }: Props) {
     setFile(null);
     setReference("");
     setNxm("");
-  }, [game.id, game.adapter]);
+  }, [game.id, game.adapter, game.nexus_domain]);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -98,6 +100,7 @@ export function SourcePanel({ game, busy, run, onJob, onView }: Props) {
     }
   };
   const lookup = (): void => {
+    if (!hasNexusMapping) return;
     void run(
       "已获取 MOD 信息",
       () => backend.resolveMod(game.id, reference.trim()),
@@ -108,7 +111,7 @@ export function SourcePanel({ game, busy, run, onJob, onView }: Props) {
     );
   };
   const download = (): void => {
-    if (installBlocked || !mod || file === null) return;
+    if (!hasNexusMapping || installBlocked || !mod || file === null) return;
     void run(
       "下载任务已创建",
       () => useGameRoot
@@ -233,6 +236,7 @@ export function SourcePanel({ game, busy, run, onJob, onView }: Props) {
           )}
         </>
       )}
+      {hasNexusMapping ? <>
       <PanelSectionRow>
         <TextField
           label="MOD 编号或 Nexus 网址"
@@ -300,6 +304,11 @@ export function SourcePanel({ game, busy, run, onJob, onView }: Props) {
         Download，等待完成后允许 NXM
         打开；也可手动下载压缩包后导入。下载与检查完成后仍需确认安装预览。
       </Note>
+      </> : <Note>
+        尚未验证此游戏的 Nexus 对应页面，暂不提供编号、网址或 NXM 下载。
+        请先按 MOD 作者说明下载压缩包；需要解压到游戏根目录时，
+        开启上方选项，核对游戏目录，再选择本地 MOD 压缩包并查看安装预览。
+      </Note>}
       <PanelSectionRow>
         <Focusable ref={fileControl} tabIndex={-1}>
           <Action
@@ -312,6 +321,7 @@ export function SourcePanel({ game, busy, run, onJob, onView }: Props) {
           </Action>
         </Focusable>
       </PanelSectionRow>
+      {hasNexusMapping && <>
       <PanelSectionRow>
         <TextField
           label="手动接收 NXM 链接（可选）"
@@ -334,6 +344,7 @@ export function SourcePanel({ game, busy, run, onJob, onView }: Props) {
       >
         接收 NXM 下载
       </Action>
+      </>}
     </PanelSection>
   );
 }

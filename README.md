@@ -1,14 +1,14 @@
 # DeckyMods
 
-SteamOS / Steam Deck 上的 Decky MOD 管理插件。当前版本 **0.2.2，个人测试预览版**。
+SteamOS / Steam Deck 上的 Decky MOD 管理插件。当前版本 **0.2.3，个人测试预览版**。
 
-[下载最新安装包](https://github.com/18798aa12/DeckyMods/releases/latest/download/DeckyMods-v0.2.2.zip) · [发布记录](https://github.com/18798aa12/DeckyMods/releases)
+[下载最新安装包](https://github.com/18798aa12/DeckyMods/releases/latest/download/DeckyMods-v0.2.3.zip) · [发布记录](https://github.com/18798aa12/DeckyMods/releases)
 
-本轮专注生化危机：默认显示 RE0 至 RE9 的 13 款 Steam 作品，包括 HD、重制版与启示录。提供 MOD 查询/导入、安装预览、冲突确认、启用、禁用、卸载、前置状态和中断恢复。
+默认显示所有已安装的 Steam 游戏，另有可选的“只显示生化危机”筛选。生化危机目录覆盖 RE0 至 RE9 的 13 款 Steam 作品，包括 HD、重制版与启示录。提供 MOD 查询/导入、安装预览、冲突确认、启用、禁用、卸载、前置状态和中断恢复。
 
 ## 游戏覆盖范围
 
-目录有 **72 款游戏、60 个不同系列**，包括 13 款生化危机 PC 游戏。识别目录不等于所有游戏都可以自动安装：
+专用目录有 **72 款游戏、60 个不同系列**，包括 13 款生化危机 PC 游戏。另扫描已登记 Steam 游戏库中的其他已安装游戏，跳过 Proton、Steam Linux Runtime 等运行工具。未收录作品使用本地压缩包和显式根目录安装，不会猜测 Nexus 游戏域名或专用适配。识别目录不等于所有游戏都可以自动安装：
 
 | 等级 | 数量 | 当前能力 |
 | --- | ---: | --- |
@@ -22,18 +22,18 @@ SteamOS / Steam Deck 上的 Decky MOD 管理插件。当前版本 **0.2.2，个�
 
 ## 安装与添加 MOD
 
-1. 安装 Decky Loader，在 Decky 设置的开发者选项里选择“从 ZIP 安装插件”，选完整 `DeckyMods-v0.2.2.zip`。不要单独拷贝 `main.py`。插件不申请 root 权限。
+1. 安装 Decky Loader，在 Decky 设置的开发者选项里选择“从 ZIP 安装插件”，选完整 `DeckyMods-v0.2.3.zip`。不要单独拷贝 `main.py`。插件不申请 root 权限。
 2. 打开 DeckyMods，扫描 Steam 游戏库并选择游戏。支持 Steam 主库和在库清单中登记的 SD 卡库。
 3. 已有压缩包：在“添加 MOD”选择本地压缩包，文件放在当前用户的下载、文档或桌面目录（支持 XDG 配置）。先看安装预览，再确认。
 4. 下载 Nexus MOD：在账户区域打开 Nexus 登录和 API Access 页面，找到 Personal API Key 区域（普通会员也可生成），再将**个人 API Key**输入插件绑定。插件不接收 Nexus 密码或浏览器 Cookie。
-5. 选择游戏后输入 MOD 编号或对应 Nexus 网址，查询并明确选择文件。
+5. 有已核实 Nexus 游戏映射的条目，可以输入 MOD 编号或对应 Nexus 网址，查询并明确选择文件。仅从 Steam 发现的未知条目提供本地导入，暂不提供 Nexus 查询。
 6. 普通会员：插件打开文件网页，你在网站完成登录及下载确认。可选开启“接收 NXM 下载”，将浏览器的 `nxm://` 链接交给本插件；也可以正常下载压缩包，再用本地导入。NXM 接收需要浏览器/桌面协议关联正常，游戏模式中不生效时请切桌面模式。
 
 普通会员不能仅凭 MOD 编号直接调用 Premium 下载接口。本插件不会绕过网页确认。官方流程说明见 [研究记录](docs/RESEARCH.md)。
 
 ## 未适配游戏的根目录安装
 
-在游戏列表关闭“只显示生化危机”，选择游戏。未检测到安装的目录条目也可以选择，再手动指定游戏文件夹。勾选“按游戏根目录安装”后，提供两个定位选项：从 Steam 自动定位，或用文件夹选择器手动选择。手动目录须为当前用户所有、包含游戏 EXE 的具体游戏目录，禁止链接、资料目录、Proton 容器及与其他游戏相互重叠的目录。已有管理中的 MOD 或未完成任务时禁止换目录。
+在默认的已安装游戏列表中选择游戏。未检测到安装的目录条目也可以选择，再手动指定游戏文件夹。勾选“按游戏根目录安装”后，提供两个定位选项：从 Steam 自动定位，或用文件夹选择器手动选择。手动目录须为当前用户所有、包含游戏 EXE 的具体游戏目录，禁止链接、资料目录、Proton 容器及与其他游戏相互重叠的目录。已有管理中的 MOD 或未完成任务时禁止换目录。
 
 只有作者明确要求解压到根目录时使用；所有压缩包相对路径保持原样，不自动去掉外层文件夹，也不执行安装器、合并配置或代装前置。预览可以展开并翻页查看所有目标文件；路径大小写与 Linux 游戏目录不同会阻止安装。确认后仍使用备份、分层部署和可撤销管理。复杂可选包、FOMOD、安装脚本需先按作者说明处理。
 
@@ -68,7 +68,7 @@ SteamOS / Steam Deck 上的 Decky MOD 管理插件。当前版本 **0.2.2，个�
 
 安装操作仍由 Decky 确认，当前没有无人值守自动安装功能。Decky 原生替换失败后可重新从已验证 ZIP 安装，不承诺启动失败后的自动回滚。
 
-TUN 虚拟 DNS 兼容：只有官方 Nexus / GitHub 域名的 DNS 结果全部为 198.18.0.0/15 虚拟地址时，才向固定 Cloudflare HTTPS 解析器查询真实公网 IP；保留目标网站 TLS 校验，拒绝私网或混合结果。解析请求只包含域名。
+TUN 虚拟 DNS 兼容：只有官方 Nexus / GitHub 域名的 DNS 结果全部为 198.18.0.0/15 虚拟地址时，才向固定 Cloudflare HTTPS 解析器查询真实公网 IP；保留目标网站 TLS 校验，拒绝私网或混合结果。解析请求只包含域名。Decky 冻结 Python 的默认证书库为空时，读取 SteamOS 系统 CA 证书；始终验证 HTTPS 证书与主机名。
 
 ## 管理与恢复
 
@@ -96,7 +96,7 @@ python3 -m venv .venv
 .venv/bin/python -m pytest --cov=decky_mods
 .venv/bin/ruff check main.py py_modules scripts tests
 .venv/bin/python -m scripts.package
-.venv/bin/python -m scripts.verify_release release/DeckyMods-v0.2.2.zip
+.venv/bin/python -m scripts.verify_release release/DeckyMods-v0.2.3.zip
 ```
 
 构建输入在 `data/dependencies.json` 固定版本及 SHA256；输出安装 ZIP、对应源码包和 SHA256SUMS。测试使用合成的游戏目录，不修改真实游戏或下载第三方 MOD。实机检查步骤见 [测试清单](docs/STEAM_DECK_TESTING.md)。

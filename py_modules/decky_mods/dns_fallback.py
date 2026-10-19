@@ -10,10 +10,10 @@ import ipaddress
 import json
 import re
 import socket
-import ssl
 from urllib.parse import urlencode
 
 from .errors import ModsError
+from .tls import trusted_context
 
 _MAX_RESPONSE = 64 * 1024
 _LABEL = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\Z")
@@ -119,9 +119,7 @@ def resolve_public(host: str) -> list[tuple]:
     connection: http.client.HTTPSConnection | None = None
     response: http.client.HTTPResponse | None = None
     try:
-        connection = http.client.HTTPSConnection(
-            "1.1.1.1", timeout=10, context=ssl.create_default_context()
-        )
+        connection = http.client.HTTPSConnection("1.1.1.1", timeout=10, context=trusted_context())
         connection.request(
             "GET",
             "/dns-query?" + urlencode({"name": hostname, "type": "A"}),

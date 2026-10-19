@@ -163,6 +163,6 @@ def plan_files(game: dict, extracted: Path) -> dict:
     if adapter == "re_legacy":
         return plan_legacy(game, paths, root)
     return _blocked(
-        "此游戏已建立下载映射，自动安装仍需专用适配；可下载并使用作者指定管理器",
+        "此游戏尚无自动安装适配；请按作者说明准备本地压缩包，并明确选择根目录安装",
         list(game["requirements"]),
     )

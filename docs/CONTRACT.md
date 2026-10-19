@@ -69,3 +69,7 @@ All workers are sharing this checkout; never revert other workers' changes. Test
 `import_archive` and `begin_download` accept optional `install_mode="auto"|"game_root"`. The selected mode is persisted with each private job; browser NXM handoff retains that mode. Explicit root `accept_nxm(uri, "game_root", expected_game_id)` must match selected game; unsolicited NXM defaults to auto.
 
 `get_mod_details(game_id, internal_mod_id)` -> `{name,author,version,description,source_url,origin,error}`; called only on expansion, local notes fallback, official game-scoped Nexus API only. Private embedded metadata is excluded from list/poll responses. Public Plan now includes `targets` for folded paginated preview.
+
+## 已安装 Steam 游戏身份
+
+专用目录外的已安装作品从受校验的 Steam manifest 建立 `steam-APPID` 身份，适配器为 `catalog`，Nexus 域名为空；仅显式根目录本地导入可部署。未知游戏与已有游戏根目录相同或重叠时不建立第二身份。今后将这些 AppID 加入专用目录前，必须先实现现有部署身份与手动目录记录的迁移，禁止直接重命名或覆盖既有 MOD 数据。

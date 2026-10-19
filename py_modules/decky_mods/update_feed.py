@@ -5,7 +5,6 @@ import io
 import ipaddress
 import json
 import re
-import ssl
 import stat
 import subprocess
 import tempfile
@@ -15,6 +14,7 @@ from urllib.parse import urljoin, urlsplit
 
 from .errors import ModsError
 from .network import _PinnedHTTPS
+from .tls import trusted_context
 
 MAX_MANIFEST = 8192
 MAX_PACKAGE = 32 * 1024 * 1024
@@ -83,9 +83,7 @@ def fetch(url: str, maximum: int, *, source: str) -> bytes:
                 or "\\" in url
             ):
                 raise ModsError("更新服务器返回了不受信任的跳转")
-            connection = _PinnedHTTPS(
-                parsed.hostname, timeout=20, context=ssl.create_default_context()
-            )
+            connection = _PinnedHTTPS(parsed.hostname, timeout=20, context=trusted_context())
         else:
             if not url.startswith(source + "/") or parsed.query or parsed.fragment:
                 raise ModsError("更新服务器地址无效")

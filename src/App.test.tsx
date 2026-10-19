@@ -601,8 +601,7 @@ describe("DeckyMods workflows", () => {
     mocks.getStatus.mockResolvedValue({ ...status, jobs: [job] });
     mocks.getPlan.mockResolvedValue({ ...plan, conflicts: [] });
     const view = render(<App />);
-    fireEvent.click(await screen.findByText("展开游戏列表（1）"));
-    fireEvent.click(screen.getByLabelText("只显示生化危机"));
+    fireEvent.click(await screen.findByText("展开游戏列表（2）"));
     fireEvent.click(screen.getByText("选择 Stellar Blade"));
     await screen.findByText("当前游戏：Stellar Blade");
     fireEvent.click(screen.getByText("展开下载与安装任务（1）"));
@@ -764,7 +763,6 @@ describe("DeckyMods workflows", () => {
     render(<App />);
     fireEvent.click(await screen.findByText("展开游戏列表（1）"));
     expect(screen.queryByText("选择 Stellar Blade")).toBeNull();
-    fireEvent.click(screen.getByLabelText("只显示生化危机"));
     fireEvent.click(screen.getByLabelText("只显示已安装游戏"));
     fireEvent.change(screen.getByLabelText("搜索游戏或系列"), {
       target: { value: "剑星" },

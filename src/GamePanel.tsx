@@ -26,7 +26,7 @@ export function GamePanel({
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
   const [installedOnly, setInstalledOnly] = useState(true);
-  const [residentOnly, setResidentOnly] = useState(true);
+  const [residentOnly, setResidentOnly] = useState(false);
   const scoped = residentOnly
     ? games.filter((game) => game.series === "resident-evil")
     : games;
@@ -43,11 +43,10 @@ export function GamePanel({
   return (
     <PanelSection title="选择游戏">
       <Note>
-        {residentOnly ? `生化危机 ${scoped.length} 款` : `已收录 ${new Set(games.map((game) => game.series)).size} 个系列`}
-        {" · 已安装 "}{scoped.filter((game) => game.installed).length} 个游戏
+        当前筛选匹配 {filtered.length} 个游戏 · 已安装 {filtered.filter((game) => game.installed).length} 个
       </Note>
       <Action onClick={() => setExpanded(!expanded)}>
-        {expanded ? "收起游戏列表" : `展开游戏列表（${scoped.length}）`}
+        {expanded ? "收起游戏列表" : `展开游戏列表（${filtered.length}）`}
       </Action>
       {expanded && (
         <>
@@ -82,7 +81,13 @@ export function GamePanel({
             />
           </PanelSectionRow>
           {filtered.length === 0 && (
-            <Note>未找到匹配游戏。可关闭“只显示已安装游戏”查看目录，关闭“只显示生化危机”查看其他系列。</Note>
+            <Note>
+              未找到匹配游戏。
+              {query.trim() && "请修改搜索词。"}
+              {residentOnly && "关闭“只显示生化危机”可查看其他游戏。"}
+              {installedOnly && "关闭“只显示已安装游戏”可查看目录。"}
+              {!residentOnly && !query.trim() && "若游戏已安装，请重新扫描 Steam 游戏。"}
+            </Note>
           )}
           {pageGames.map((game) => (
             <div key={game.id}>

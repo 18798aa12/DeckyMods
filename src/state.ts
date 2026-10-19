@@ -24,7 +24,7 @@ export function capability(game: Game): string {
     ? "已实现格式适配 · 未实机验证"
     : game.support === "needs_setup"
       ? "需要额外加载器或设置"
-      : "收录识别 · 暂不支持自动安装";
+      : "可手动按作者目录安装";
 }
 export function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes < 0) return "未知";

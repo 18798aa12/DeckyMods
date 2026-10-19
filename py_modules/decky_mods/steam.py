@@ -9,6 +9,14 @@ import sys
 from pathlib import Path
 
 from .errors import ModsError
+from .steam_library import (
+    MAX_LIBRARIES,
+    InstallationRoots,
+    discovered_entry,
+    is_runtime_tool,
+    manifest_candidates,
+    valid_app_id,
+)
 from .vdf import read_vdf
 
 _APP_ID = re.compile(r"[1-9][0-9]{0,9}\Z")
@@ -84,7 +92,7 @@ def _running_apps(
 
 
 class SteamDiscovery:
-    """Resolve games exclusively from reviewed AppIDs and local Steam manifests."""
+    """Resolve reviewed adapters and other installed games from validated Steam manifests."""
 
     def __init__(self, catalog: list[dict], home: Path | None = None) -> None:
         self.catalog = copy.deepcopy(catalog)
@@ -105,6 +113,8 @@ class SteamDiscovery:
                 if not anchor.is_dir():
                     continue
                 steam = anchor.resolve(strict=True)
+                if steam not in libraries and len(libraries) >= MAX_LIBRARIES:
+                    raise ValueError("too many Steam libraries")
                 libraries.add(steam)
                 for config in (
                     steam / "steamapps/libraryfolders.vdf",
@@ -123,13 +133,20 @@ class SteamDiscovery:
                             continue
                         candidate = Path(raw)
                         if candidate.is_absolute() and candidate.is_dir():
-                            libraries.add(candidate.resolve(strict=True))
+                            resolved = candidate.resolve(strict=True)
+                            if resolved not in libraries and len(libraries) >= MAX_LIBRARIES:
+                                raise ValueError("too many Steam libraries")
+                            libraries.add(resolved)
             except (OSError, UnicodeError, ValueError):
                 issues.append("部分 Steam 游戏库清单无法读取，请检查 Steam 存储设置")
         return sorted(libraries, key=str), issues
 
     @staticmethod
     def _installed(library: Path, app_id: str) -> dict | None:
+        if not valid_app_id(app_id):
+            raise ValueError("invalid Steam AppID")
+        if (library / "steamapps").is_symlink():
+            raise ValueError("symlinked Steam manifest directory")
         manifest = library / "steamapps" / f"appmanifest_{app_id}.acf"
         if not manifest.exists():
             return None
@@ -146,6 +163,8 @@ class SteamDiscovery:
         ):
             raise ValueError("unsafe Steam install directory")
         raw_common = library / "steamapps/common"
+        if raw_common.is_symlink() or (raw_common / name).is_symlink():
+            raise ValueError("symlinked Steam game directory")
         common = raw_common.resolve(strict=True)
         # A declared library may itself be a mount/symlink, its internal roots may not escape it.
         if not _inside(common, library):
@@ -155,12 +174,20 @@ class SteamDiscovery:
             raise ValueError("game directory escapes Steam common")
         build = state.get("buildid")
         build_id = build if isinstance(build, str) and build.isdecimal() else None
+        title = state.get("name", name)
+        if (
+            not isinstance(title, str)
+            or not 1 <= len(title.strip()) <= 500
+            or any(ord(char) < 32 for char in title)
+        ):
+            raise ValueError("invalid Steam game name")
         flags = state.get("StateFlags")
         if flags is not None and (
             not isinstance(flags, str) or not flags.isdecimal() or not int(flags) & 4
         ):
             return None
         return {
+            "name": title.strip(),
             "path": str(target),
             "app_id": app_id,
             "build_id": build_id,
@@ -169,7 +196,7 @@ class SteamDiscovery:
         }
 
     def discover(self) -> list[dict]:
-        """Return every catalog entry, enriching only validated installed games."""
+        """Keep catalog identities, then include other validated installed Steam titles."""
         libraries, issues = self._libraries()
         result: list[dict] = []
         for original in self.catalog:
@@ -195,8 +222,38 @@ class SteamDiscovery:
                 "updating": False,
             }
             if found:
-                base = {**base, **found, "installed": True}
+                base = {**base, **found, "name": original["name"], "installed": True}
             result.append(base)
+        known = {app_id for game in self.catalog for app_id in game["steam_app_ids"]}
+        roots = InstallationRoots()
+        for game in result:
+            if game["installed"]:
+                try:
+                    roots.register(Path(game["path"]))
+                except OSError:
+                    issues.append("部分 Steam 游戏目录已变化，请刷新游戏库后重试")
+        manifests, scan_issues = manifest_candidates(libraries)
+        issues.extend(scan_issues)
+        for library, app_id in sorted(manifests, key=lambda item: (int(item[1]), str(item[0]))):
+            if app_id in known:
+                continue
+            try:
+                found = self._installed(library, app_id)
+                if found is None or is_runtime_tool(app_id, found["name"]):
+                    continue
+                if not roots.register(Path(found["path"]), exclusive=True):
+                    issues.append("部分 Steam 游戏安装目录与其他游戏重叠，已跳过以保护 MOD 记录")
+                    continue
+                result.append(
+                    {
+                        **discovered_entry(app_id, found["name"]),
+                        **found,
+                        "installed": True,
+                    }
+                )
+                known.add(app_id)
+            except (OSError, UnicodeError, ValueError):
+                issues.append("部分 Steam 游戏安装清单或目录无效，已跳过")
         candidates = {game["app_id"]: Path(game["path"]) for game in result if game["installed"]}
         running, uncertain = _running_apps(candidates)
         if uncertain:

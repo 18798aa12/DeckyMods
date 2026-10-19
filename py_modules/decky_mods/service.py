@@ -56,7 +56,7 @@ class Service:
         self.launch_options = LaunchOptions(directory / "launch-options")
         self.resident = RESettings(directory / "resident-settings")
         self.updates = UpdateManager(
-            plugin_dir, directory / "updates", "0.2.2", source=GITHUB_SOURCE
+            plugin_dir, directory / "updates", "0.2.3", source=GITHUB_SOURCE
         )
         self.downloads = directory / "downloads"
         private_directory(self.downloads)
@@ -66,7 +66,7 @@ class Service:
 
     def get_status(self) -> dict:
         return {
-            "version": "0.2.2",
+            "version": "0.2.3",
             "platform_supported": platform.system() == "Linux",
             "auth": self.nexus.status(),
             "jobs": self.get_jobs(),
@@ -96,7 +96,7 @@ class Service:
     def get_game(self, game_id: str) -> dict:
         matches = [game for game in self.list_games() if game["id"] == game_id]
         if not matches:
-            raise ModsError("游戏不在已审核适配目录内")
+            raise ModsError("未找到所选游戏，请刷新 Steam 游戏库后重试")
         return {
             "game": matches[0],
             "mods": self.engine.list_mods(game_id),
@@ -208,12 +208,16 @@ class Service:
 
     def resolve_mod(self, game_id: str, reference: str) -> dict:
         game = self.get_game(game_id)["game"]
+        if not game.get("nexus_domain"):
+            raise ModsError("此游戏尚无已核实的 Nexus 映射，请按作者说明使用本地 ZIP 压缩包")
         return {**self.nexus.resolve(game["nexus_domain"], reference), "game_id": game_id}
 
     def begin_download(
         self, game_id: str, mod_id: int, file_id: int, install_mode: str = "auto"
     ) -> dict:
         game = self.roots.resolve(game_id)
+        if not game.get("nexus_domain"):
+            raise ModsError("此游戏尚无已核实的 Nexus 映射，请按作者说明使用本地 ZIP 压缩包")
         mode = self._install_mode(game, install_mode)
         info = self.nexus.resolve(game["nexus_domain"], str(mod_id))
         files = [file for file in info["files"] if file["file_id"] == file_id]

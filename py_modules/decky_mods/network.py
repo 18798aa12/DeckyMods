@@ -5,7 +5,6 @@ import ipaddress
 import json
 import os
 import socket
-import ssl
 import tempfile
 import threading
 from collections.abc import Callable
@@ -15,12 +14,13 @@ from urllib.parse import SplitResult, urljoin, urlsplit
 
 from .dns_fallback import resolve_public
 from .errors import ModsError
+from .tls import trusted_context
 
 API_HOST = "api.nexusmods.com"
 MAX_DOWNLOAD = 8 * 1024**3
 MAX_JSON = 8 * 1024**2
 REDIRECTS = {301, 302, 303, 307, 308}
-BASE_HEADERS = {"User-Agent": "DeckyMods/0.2.2", "Accept-Encoding": "identity"}
+BASE_HEADERS = {"User-Agent": "DeckyMods/0.2.3", "Accept-Encoding": "identity"}
 
 
 def validate_url(url: str, *, api: bool) -> SplitResult:
@@ -145,7 +145,7 @@ class SafeTransport:
 
     def _once(self, url: str, headers: dict[str, str]) -> _OwnedResponse:
         parsed = urlsplit(url)
-        connection = _PinnedHTTPS(parsed.hostname, timeout=20, context=ssl.create_default_context())
+        connection = _PinnedHTTPS(parsed.hostname, timeout=20, context=trusted_context())
         try:
             path = parsed.path or "/"
             if parsed.query:

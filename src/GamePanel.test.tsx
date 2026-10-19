@@ -21,24 +21,42 @@ const resident: Game = {
 const stellar: Game = { ...resident, id: "stellarblade", name: "Stellar Blade", series: "stellar-blade", series_name: "剑星" };
 afterEach(cleanup);
 
-describe("Resident Evil game selection", () => {
-  it("defaults to the actual Resident Evil count and can expose other catalog games", () => {
-    render(<GamePanel games={[resident, stellar]} selected="" busy={false} onSelect={vi.fn()} onRefresh={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: "展开游戏列表（1）" }));
-    expect((screen.getByLabelText("只显示生化危机") as HTMLInputElement).checked).toBe(true);
-    expect(screen.getByText(/生化危机 1 款/)).toBeTruthy();
-    expect(screen.getByText("选择 Resident Evil 7")).toBeTruthy();
+describe("installed Steam game selection", () => {
+  it("defaults to every installed game and keeps the list folded", () => {
+    render(<GamePanel games={[resident, stellar, { ...stellar, id: "missing", name: "未安装游戏", installed: false }]} selected="" busy={false} onSelect={vi.fn()} onRefresh={vi.fn()} />);
     expect(screen.queryByText("选择 Stellar Blade")).toBeNull();
-    fireEvent.click(screen.getByLabelText("只显示生化危机"));
-    expect(screen.getByText("选择 Stellar Blade")).toBeTruthy();
-    expect(screen.getByText(/已收录 2 个系列/)).toBeTruthy();
-  });
-  it("retains installed-only safety while viewing every Resident Evil catalog entry", () => {
-    render(<GamePanel games={[resident, { ...resident, id: "re0", name: "RE0", installed: false }, stellar]} selected="" busy={false} onSelect={vi.fn()} onRefresh={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "展开游戏列表（2）" }));
-    expect(screen.queryByText("选择 RE0")).toBeNull();
-    fireEvent.click(screen.getByLabelText("只显示已安装游戏"));
-    expect((screen.getByText("选择 RE0") as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByLabelText("只显示生化危机") as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByLabelText("只显示已安装游戏") as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByText("选择 Resident Evil 7")).toBeTruthy();
+    expect(screen.getByText("选择 Stellar Blade")).toBeTruthy();
+    expect(screen.queryByText("选择 未安装游戏")).toBeNull();
+    expect(screen.getByText("当前筛选匹配 2 个游戏 · 已安装 2 个")).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("只显示生化危机"));
     expect(screen.queryByText("选择 Stellar Blade")).toBeNull();
+    expect(screen.getByText("当前筛选匹配 1 个游戏 · 已安装 1 个")).toBeTruthy();
+  });
+  it("shows only applicable empty-filter guidance", () => {
+    render(<GamePanel games={[stellar]} selected="" busy={false} onSelect={vi.fn()} onRefresh={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "展开游戏列表（1）" }));
+    fireEvent.click(screen.getByLabelText("只显示生化危机"));
+    expect(screen.getByText(/关闭“只显示生化危机”可查看其他游戏/)).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("只显示生化危机"));
+    fireEvent.change(screen.getByLabelText("搜索游戏或系列"), { target: { value: "不存在" } });
+    expect(screen.getByText(/请修改搜索词/)).toBeTruthy();
+    expect(screen.queryByText(/关闭“只显示生化危机”可查看其他游戏/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "收起游戏列表" }));
+    expect(screen.getByRole("button", { name: "展开游戏列表（0）" })).toBeTruthy();
+  });
+  it("permits selecting discovered unmapped games and uninstalled catalog entries", () => {
+    const onSelect = vi.fn();
+    const unknown: Game = { ...stellar, id: "steam-2358720", name: "Black Myth: Wukong", nexus_domain: "", adapter: "catalog", support: "catalog" };
+    render(<GamePanel games={[resident, unknown, { ...unknown, id: "missing", name: "手动游戏", installed: false }]} selected="" busy={false} onSelect={onSelect} onRefresh={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "展开游戏列表（2）" }));
+    fireEvent.click(screen.getByText("选择 Black Myth: Wukong"));
+    expect(onSelect).toHaveBeenCalledWith("steam-2358720");
+    fireEvent.click(screen.getByLabelText("只显示已安装游戏"));
+    expect((screen.getByText("选择 手动游戏") as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getAllByText(/可手动按作者目录安装/)).toHaveLength(2);
   });
 });

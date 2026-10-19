@@ -40,3 +40,33 @@ def test_busy_game_recovery_resumes_after_steam_becomes_idle(
     instance.recover_all()
     assert not engine.db.pending(game["id"])
     assert target.read_bytes() == b"original"
+
+
+@pytest.mark.parametrize("configuration", [False, True])
+def test_successful_recovery_retry_clears_only_its_prior_error(service, tmp_path, configuration):
+    instance, game, _ = service
+    target = Path(game["path"]) / "original.txt"
+    target.write_bytes(b"original")
+    engine = instance.resident.engine if configuration else instance.engine
+
+    def interrupted(index, name):
+        raise KeyboardInterrupt("simulated power loss")
+
+    engine.fault = interrupted
+    plan = prepare(engine, game, tmp_path, target="original.txt", payload=b"interrupted")
+    with pytest.raises(KeyboardInterrupt):
+        engine.install(game, plan["id"], True)
+    target.write_bytes(b"external")
+    instance.recover_all()
+    assert instance.get_game(game["id"])["recovery_error"]
+    instance.recovery_errors = {**instance.recovery_errors, "other-game": "keep"}
+    instance.discovery.game = {**game, "running": True}
+    instance.recover_all()
+    assert instance.get_game(game["id"])["recovery_error"]
+    instance.discovery.game = game
+    target.write_bytes(b"interrupted")
+    instance.recover_all()
+    assert target.read_bytes() == b"original"
+    assert not engine.db.pending(game["id"])
+    assert instance.get_game(game["id"])["recovery_error"] is None
+    assert instance.recovery_errors == {"other-game": "keep"}

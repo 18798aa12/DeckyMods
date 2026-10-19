@@ -64,7 +64,7 @@ class Service:
         self.launch_options = LaunchOptions(directory / "launch-options")
         self.resident = RESettings(directory / "resident-settings")
         self.updates = UpdateManager(
-            plugin_dir, directory / "updates", "0.2.10", source=GITHUB_SOURCE
+            plugin_dir, directory / "updates", "0.2.11", source=GITHUB_SOURCE
         )
         self.downloads = directory / "downloads"
         private_directory(self.downloads)
@@ -74,7 +74,7 @@ class Service:
 
     def get_status(self) -> dict:
         return {
-            "version": "0.2.10",
+            "version": "0.2.11",
             "platform_supported": platform.system() == "Linux",
             "auth": self.nexus.status(),
             "jobs": self.get_jobs(),
@@ -146,7 +146,7 @@ class Service:
             return self.resident.apply(self.roots.resolve(game_id), keys)
 
     def restore_resident_settings(self, game_id: str) -> dict:
-        with self.lock:
+        with self.lock, self.engine.lock:
             state = self.engine.db.game(game_id)
             if any(
                 mod["enabled"]
@@ -425,14 +425,15 @@ class Service:
     def set_mod_enabled(self, game_id: str, mod_id: str, enabled: bool) -> dict:
         if type(enabled) is not bool:
             raise ModsError("启用状态必须为布尔值")
-        game = self.roots.resolve(game_id)
-        if enabled:
-            state = self.engine.db.game(game_id)
-            matches = [mod for mod in (state or {}).get("mods", []) if mod["id"] == mod_id]
-            if matches:
-                self._prepare_resource_flags(game, matches[0]["files"])
-        self.engine.set_enabled(game, mod_id, enabled)
-        return self.get_game(game_id)
+        with self.engine.lock:
+            game = self.roots.resolve(game_id)
+            if enabled:
+                state = self.engine.db.game(game_id)
+                matches = [mod for mod in (state or {}).get("mods", []) if mod["id"] == mod_id]
+                if matches:
+                    self._prepare_resource_flags(game, matches[0]["files"])
+            self.engine.set_enabled(game, mod_id, enabled)
+            return self.get_game(game_id)
 
     def uninstall_mod(self, game_id: str, mod_id: str) -> dict:
         self.engine.uninstall(self.roots.resolve(game_id), mod_id)
@@ -463,6 +464,11 @@ class Service:
                     if not game["running"] and not game.get("updating"):
                         self.engine.recover(game)
                         self.resident.engine.recover(game)
+                        self.recovery_errors = {
+                            ident: error
+                            for ident, error in self.recovery_errors.items()
+                            if ident != game["id"]
+                        }
                 except ModsError as error:
                     self.recovery_errors = {**self.recovery_errors, game["id"]: str(error)}
 

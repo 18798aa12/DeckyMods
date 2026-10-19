@@ -1,10 +1,41 @@
 import json
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from decky_mods.errors import ModsError
 from decky_mods.nexus import NexusClient
+
+
+@pytest.mark.parametrize("newer_action", ["disconnect", "bind"])
+def test_late_bind_cannot_restore_or_replace_newer_account(client, monkeypatch, newer_action):
+    nexus, _ = client
+    started, release = threading.Event(), threading.Event()
+
+    def validate(url, headers):
+        if headers["apikey"] == "slow-key":
+            started.set()
+            assert release.wait(5)
+            return {"user_id": 11, "name": "Older"}
+        return {"user_id": 22, "name": "Newer"}
+
+    monkeypatch.setattr(nexus.transport, "json", validate)
+    with ThreadPoolExecutor() as executor:
+        pending = executor.submit(nexus.bind, "slow-key")
+        try:
+            assert started.wait(5)
+            if newer_action == "disconnect":
+                nexus.disconnect()
+            else:
+                nexus.bind("new-key")
+        finally:
+            release.set()
+        with pytest.raises(ModsError, match="取消|变更"):
+            pending.result(timeout=5)
+    expected = None if newer_action == "disconnect" else 22
+    assert nexus.status()["user_id"] == expected
+    assert NexusClient(nexus.directory).status()["user_id"] == expected
 
 
 @pytest.fixture

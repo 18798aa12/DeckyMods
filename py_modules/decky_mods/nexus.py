@@ -45,6 +45,7 @@ class NexusClient:
         private_directory(self.directory)
         self.transport = SafeTransport()
         self._lock = threading.RLock()
+        self._auth_revision = 0
         saved = read_json(self.directory / "account.json")
         self._account = saved if saved is not None else {}
         if saved is not None and (
@@ -68,7 +69,7 @@ class NexusClient:
         return {
             "apikey": credential,
             "Application-Name": "DeckyMods",
-            "Application-Version": "0.2.6",
+            "Application-Version": "0.2.7",
             "Protocol-Version": "1.0.0",
             "Accept": "application/json",
         }
@@ -76,6 +77,9 @@ class NexusClient:
     def bind(self, key: str) -> dict:
         if not isinstance(key, str) or not KEY.fullmatch(key):
             raise ModsError("请输入有效的个人 API Key，请勿输入密码或网址")
+        with self._lock:
+            self._auth_revision += 1
+            revision = self._auth_revision
         result = self.transport.json(API + "/users/validate.json", self._headers(key))
         if not isinstance(result, dict):
             raise ModsError("Nexus 登录验证返回无效数据")
@@ -92,12 +96,15 @@ class NexusClient:
         }
         account = {"key": key, "auth": auth}
         with self._lock:
+            if revision != self._auth_revision:
+                raise ModsError("账号操作已变更，这次绑定已取消，请以当前账号状态为准")
             write_json(self.directory / "account.json", account)
             self._account = account
         return {**auth}
 
     def disconnect(self) -> dict:
         with self._lock:
+            self._auth_revision += 1
             try:
                 (self.directory / "account.json").unlink(missing_ok=True)
             except OSError:

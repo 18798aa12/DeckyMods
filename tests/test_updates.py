@@ -89,6 +89,33 @@ def manager(tmp_path, signing, monkeypatch, content=None, **overrides):
     return update, payloads
 
 
+def test_restart_checks_again_when_available_manifest_was_only_in_memory(
+    tmp_path, signing, monkeypatch
+):
+    update, _ = manager(tmp_path, signing, monkeypatch)
+    assert update.check()["available"]
+    reopened = UpdateManager(signing[0], update.directory, "0.1.2")
+    assert reopened.check_due()
+
+
+def test_failed_settings_save_preserves_live_and_persisted_preferences(
+    tmp_path, signing, monkeypatch
+):
+    update, _ = manager(tmp_path, signing, monkeypatch)
+    previous = update.check()
+
+    def fail(*args):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(update, "_save", fail)
+    with pytest.raises(ModsError, match="保存"):
+        update.configure("http://192.168.50.99:8767", False)
+    assert update.status() == previous
+    reopened = UpdateManager(signing[0], update.directory, "0.1.2")
+    assert reopened.status()["source"] == previous["source"]
+    assert reopened.status()["auto_check"] == previous["auto_check"]
+
+
 def test_no_source_reports_honest_disabled_download(tmp_path, signing):
     update = UpdateManager(signing[0], tmp_path / "updates", "0.1.2")
     status = update.status()

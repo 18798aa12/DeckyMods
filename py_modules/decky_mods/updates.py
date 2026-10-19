@@ -43,6 +43,7 @@ class UpdateManager:
             "auto_check": True,
         }
         self._manifest: dict | None = None
+        self._checked_session = False
         self._error: str | None = None
         state = directory / "preferences.json"
         try:
@@ -61,12 +62,12 @@ class UpdateManager:
             self._state = {"source": None, "auto_check": True}
             self._error = "更新设置无法读取，请重新保存更新来源"
 
-    def _save(self) -> None:
+    def _save(self, state: dict | None = None) -> None:
         descriptor, name = tempfile.mkstemp(prefix=".preferences-", dir=self.directory)
         path = Path(name)
         try:
             with os.fdopen(descriptor, "w") as output:
-                json.dump(self._state, output, separators=(",", ":"))
+                json.dump(self._state if state is None else state, output, separators=(",", ":"))
                 output.flush()
                 os.fsync(output.fileno())
             os.replace(path, self.directory / "preferences.json")
@@ -100,22 +101,30 @@ class UpdateManager:
             raise ModsError("自动检查选项无效")
         with self._lock:
             changed = normalized != self._state["source"]
-            self._state = {**self._state, "source": normalized, "auto_check": auto_check}
+            state = {**self._state, "source": normalized, "auto_check": auto_check}
             if changed:
-                self._manifest = None
-                self._state.pop("checked_at", None)
-                self._state.pop("prepared", None)
-            self._error = None
+                state = {
+                    key: value
+                    for key, value in state.items()
+                    if key not in {"checked_at", "prepared"}
+                }
             try:
-                self._save()
+                self._save(state)
             except OSError:
                 raise ModsError("无法保存更新设置，请检查剩余空间后重试") from None
+            self._state = state
+            if changed:
+                self._manifest = None
+                self._checked_session = False
+            self._error = None
             return self.status()
 
     def check_due(self) -> bool:
         with self._lock:
             if not self._state["auto_check"] or not self._state["source"]:
                 return False
+            if not self._checked_session:
+                return True
             try:
                 checked = datetime.fromisoformat(self._state.get("checked_at", ""))
                 return (datetime.now(UTC) - checked).total_seconds() >= CHECK_INTERVAL
@@ -135,6 +144,7 @@ class UpdateManager:
 
     def check(self) -> dict:
         with self._lock:
+            self._checked_session = True
             self._manifest = None
             self._error = None
             try:

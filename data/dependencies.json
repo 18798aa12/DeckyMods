@@ -1,0 +1,10 @@
+{
+  "libarchive-c": {
+    "version": "5.3",
+    "license": "CC0-1.0",
+    "url": "https://files.pythonhosted.org/packages/88/3f/ff00c588ebd7eae46a9d6223389f5ae28a3af4b6d975c0f2a6d86b1342b9/libarchive_c-5.3-py3-none-any.whl",
+    "sha256": "651550a6ec39266b78f81414140a1e04776c935e72dfc70f1d7c8e0a3672ffba",
+    "source_url": "https://files.pythonhosted.org/packages/26/23/e72434d5457c24113e0c22605cbf7dd806a2561294a335047f5aa8ddc1ca/libarchive_c-5.3.tar.gz",
+    "source_sha256": "5ddb42f1a245c927e7686545da77159859d5d4c6d00163c59daff4df314dae82"
+  }
+}

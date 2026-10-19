@@ -1,0 +1,5 @@
+# Keep Nexus authentication and Turnstile on the same selected route.
+payload:
+  - '+.nexusmods.com'
+  - '+.challenges.cloudflare.com'
+  - '+.dnstest.dev'

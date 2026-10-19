@@ -4,7 +4,9 @@ import re
 import sys
 import tarfile
 import zipfile
+from html import unescape
 from pathlib import Path
+from urllib.parse import parse_qsl, urlsplit
 
 FORBIDDEN = {
     "settings",
@@ -21,15 +23,67 @@ FORBIDDEN = {
 }
 
 
+def _signed_download(text: str) -> bool:
+    fields = {
+        "key",
+        "token",
+        "md5",
+        "signature",
+        "sig",
+        "auth",
+        "auth_key",
+        "x-amz-signature",
+        "x-amz-credential",
+        "policy",
+        "key-pair-id",
+    }
+    urls = re.findall(
+        r"https:" + r"//(?:[A-Za-z0-9-]+\.)*(?:nexusmods\.com|nexus-cdn\.com)"
+        r"(?=[:/?#])[^\s\"'<>]*",
+        unescape(text),
+        re.I,
+    )
+    for url in urls:
+        try:
+            parsed = urlsplit(url)
+            host = (parsed.hostname or "").lower()
+            nexus = any(
+                host == suffix or host.endswith("." + suffix)
+                for suffix in ("nexusmods.com", "nexus-cdn.com")
+            )
+            if nexus and any(
+                key.casefold() in fields and value
+                for key, value in parse_qsl(parsed.query, max_num_fields=100)
+            ):
+                return True
+        except ValueError:
+            raise ValueError("Malformed download URL in distribution") from None
+    return False
+
+
 def inspect_bytes(name: str, payload: bytes) -> None:
     text = payload.decode("utf-8", errors="ignore")
     test = name.startswith(("tests/", "DeckyMods/tests/")) or ".test." in name
     home = re.compile(r"/" + r"Users/[^\s/\"']+/")
     grant = re.compile(r"nxm://[^\s\"'<>]+[?&]key=[^\s\"'<>]+", re.I)
-    key = re.compile(r"[\"'](?:api_key|apikey)[\"']\s*:\s*[\"']([A-Za-z0-9._-]{32,})")
+    credential = r"[A-Za-z0-9._/+=-]{32,4096}"
+    key = re.compile(
+        r"(?<![\w])[\"']?(?:nexus_)?api_?key[\"']?\s*[:=]\s*(?:[\"']"
+        + credential
+        + r"[\"']|"
+        + credential
+        + r"(?=$|[\s;,]))",
+        re.I,
+    )
+    account_key = re.search(r"[\"']key[\"']\s*:\s*[\"']" + credential + r"[\"']", text)
+    account = account_key and re.search(r"[\"']auth[\"']\s*:\s*\{", text)
     if re.search(r"-----BEGIN (?:[A-Z0-9]+ )?PRIVATE KEY-----", text):
         raise ValueError(f"Private key in {name}")
-    if key.search(text) or (not test and (home.search(text) or grant.search(text))):
+    if (
+        key.search(text)
+        or account
+        or (not test and (home.search(text) or grant.search(text) or _signed_download(text)))
+    ):
         raise ValueError(f"Private data or signed grant in {name}")
 
 

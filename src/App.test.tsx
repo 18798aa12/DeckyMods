@@ -293,7 +293,9 @@ async function selectGame(): Promise<void> {
   fireEvent.click(
     await screen.findByRole("button", { name: "展开游戏列表（1）" }),
   );
-  fireEvent.click(screen.getByRole("button", { name: "选择 Resident Evil 4" }));
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "选择 Resident Evil 4" }));
+  });
   await screen.findByText("当前游戏：Resident Evil 4");
 }
 describe("DeckyMods workflows", () => {
@@ -308,6 +310,29 @@ describe("DeckyMods workflows", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "展开已安装 MOD（1）" }),
     );
+    expect(await screen.findByRole("button", { name: "展开“示例服装”" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "禁用 MOD" })).toBeNull();
+  });
+  it("keeps a requested MOD list open after delayed game selection and polling", async () => {
+    vi.useFakeTimers();
+    let finishSelection: ((value: GameView) => void) | undefined;
+    mocks.getGame.mockImplementationOnce(() => new Promise<GameView>((resolve) => {
+      finishSelection = resolve;
+    }));
+    render(<App />);
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("button", { name: "展开游戏列表（1）" }));
+    fireEvent.click(screen.getByRole("button", { name: "选择 Resident Evil 4" }));
+    expect(screen.queryByText("当前游戏：Resident Evil 4")).toBeNull();
+    expect(screen.queryByRole("button", { name: "展开已安装 MOD（1）" })).toBeNull();
+    await act(async () => { finishSelection?.(gameView); });
+    expect(screen.getByText("当前游戏：Resident Evil 4")).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "展开已安装 MOD（1）" }));
+    });
+    expect(screen.getByRole("button", { name: "展开“示例服装”" })).toBeTruthy();
+    await act(async () => { vi.advanceTimersByTime(3000); });
+    expect(mocks.getGame).toHaveBeenCalledTimes(2);
     expect(screen.getByRole("button", { name: "展开“示例服装”" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "禁用 MOD" })).toBeNull();
   });

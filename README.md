@@ -25,7 +25,7 @@ SteamOS / Steam Deck 上的 Decky MOD 管理插件。当前版本 **0.2.1，个�
 1. 安装 Decky Loader，在 Decky 设置的开发者选项里选择“从 ZIP 安装插件”，选完整 `DeckyMods-v0.2.1.zip`。不要单独拷贝 `main.py`。插件不申请 root 权限。
 2. 打开 DeckyMods，扫描 Steam 游戏库并选择游戏。支持 Steam 主库和在库清单中登记的 SD 卡库。
 3. 已有压缩包：在“添加 MOD”选择本地压缩包，文件放在当前用户的下载、文档或桌面目录（支持 XDG 配置）。先看安装预览，再确认。
-4. 下载 Nexus MOD：在账户区域打开 Nexus 登录和 API Key 页面，将**个人 API Key**输入插件绑定。插件不接收 Nexus 密码或浏览器 Cookie。
+4. 下载 Nexus MOD：在账户区域打开 Nexus 登录和 API Access 页面，找到 Personal API Key 区域（普通会员也可生成），再将**个人 API Key**输入插件绑定。插件不接收 Nexus 密码或浏览器 Cookie。
 5. 选择游戏后输入 MOD 编号或对应 Nexus 网址，查询并明确选择文件。
 6. 普通会员：插件打开文件网页，你在网站完成登录及下载确认。可选开启“接收 NXM 下载”，将浏览器的 `nxm://` 链接交给本插件；也可以正常下载压缩包，再用本地导入。NXM 接收需要浏览器/桌面协议关联正常，游戏模式中不生效时请切桌面模式。
 

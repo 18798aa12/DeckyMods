@@ -1,6 +1,8 @@
+import http.client
 import io
 import socket
 import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 from decky_mods.errors import ModsError
@@ -97,7 +99,7 @@ def test_pinned_connection_closes_failed_socket(monkeypatch):
     assert closed == [True]
 
 
-def test_once_builds_path_headers_and_closes_connection(monkeypatch):
+def test_once_builds_path_headers_and_keeps_connection_until_response_closed(monkeypatch):
     import decky_mods.network as network
 
     calls = []
@@ -120,6 +122,8 @@ def test_once_builds_path_headers_and_closes_connection(monkeypatch):
     assert response.read() == b"{}"
     assert calls[0] == "api.nexusmods.com"
     assert calls[1] == (("GET", "/a?x=y"), {"headers": {"apikey": "demo"}})
+    assert "closed" not in calls
+    response.close()
     assert calls[-1] == "closed"
 
 
@@ -365,3 +369,210 @@ def test_mixed_fake_and_private_dns_is_blocked_without_doh(monkeypatch):
     with pytest.raises(ModsError):
         public_addresses("api.nexusmods.com")
     assert calls == []
+
+
+@pytest.fixture
+def live_keepalive_transport(monkeypatch):
+    import decky_mods.network as network
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def log_message(self, *args):
+            pass
+
+        def handle(self):
+            try:
+                super().handle()
+            except (ConnectionResetError, BrokenPipeError):
+                # The client closes unread bodies on rejected statuses/redirects.
+                pass
+
+        def do_GET(self):
+            status = 200
+            headers = {}
+            if self.path == "/json":
+                body = b'{"ok":true}'
+            elif self.path == "/badjson":
+                body = b"private invalid response"
+            elif self.path == "/forbidden":
+                status, body = 403, b"private error response"
+            elif self.path == "/truncated":
+                body = b"small"
+                self.close_connection = True
+            elif self.path in ("/redirect", "/api-redirect"):
+                status, body = 302, b""
+                headers["Location"] = "https://cf-files.nexusmods.com/archive"
+            else:
+                body = b"archive payload"
+            self.send_response(status)
+            self.send_header(
+                "Content-Length", "20" if self.path == "/truncated" else str(len(body))
+            )
+            for key, value in headers.items():
+                self.send_header(key, value)
+            self.end_headers()
+            self.wfile.write(body)
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    server.daemon_threads = True
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    connections = []
+
+    class Connection(http.client.HTTPConnection):
+        def __init__(self):
+            super().__init__("127.0.0.1", server.server_port, timeout=3)
+            self.close_calls = 0
+            connections.append(self)
+
+        def close(self):
+            self.close_calls += 1
+            super().close()
+
+    monkeypatch.setattr(network, "_PinnedHTTPS", lambda *args, **kwargs: Connection())
+    try:
+        yield SafeTransport(), connections
+    finally:
+        for connection in connections:
+            connection.close()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=3)
+
+
+def test_real_http11_json_response_stays_open_and_cleanup_owned(live_keepalive_transport):
+    transport, connections = live_keepalive_transport
+    assert transport.json("https://api.nexusmods.com/json", {"apikey": "dummy-test-value"}) == {
+        "ok": True
+    }
+    assert len(connections) == 1
+    assert connections[0].sock is None
+    assert connections[0].close_calls == 1
+
+
+def test_real_http11_download_reads_and_closes_socket(live_keepalive_transport, tmp_path):
+    transport, connections = live_keepalive_transport
+    destination = tmp_path / "archive.zip"
+    transport.download(
+        "https://cf-files.nexusmods.com/archive",
+        destination,
+        threading.Event(),
+        lambda *_: None,
+    )
+    assert destination.read_bytes() == b"archive payload"
+    assert connections[0].sock is None
+    assert connections[0].close_calls == 1
+
+
+@pytest.mark.parametrize("path", ["badjson", "forbidden", "api-redirect"])
+def test_real_http11_error_closes_response_and_connection(live_keepalive_transport, path):
+    transport, connections = live_keepalive_transport
+    with pytest.raises(ModsError) as error:
+        transport.json("https://api.nexusmods.com/" + path, {"apikey": "dummy-test-value"})
+    assert "private" not in str(error.value)
+    assert "dummy-test-value" not in str(error.value)
+    assert all(connection.sock is None for connection in connections)
+    assert all(connection.close_calls == 1 for connection in connections)
+
+
+def test_real_http11_redirect_closes_first_socket_and_download(live_keepalive_transport, tmp_path):
+    transport, connections = live_keepalive_transport
+    destination = tmp_path / "archive.zip"
+    transport.download(
+        "https://cf-files.nexusmods.com/redirect",
+        destination,
+        threading.Event(),
+        lambda *_: None,
+    )
+    assert destination.read_bytes() == b"archive payload"
+    assert len(connections) == 2
+    assert all(connection.sock is None for connection in connections)
+    assert all(connection.close_calls == 1 for connection in connections)
+
+
+def test_real_http11_cancel_during_download_releases_resources(live_keepalive_transport, tmp_path):
+    transport, connections = live_keepalive_transport
+    cancelled = threading.Event()
+
+    def progress(done, total):
+        if done:
+            cancelled.set()
+
+    with pytest.raises(ModsError, match="取消"):
+        transport.download(
+            "https://cf-files.nexusmods.com/archive",
+            tmp_path / "archive.zip",
+            cancelled,
+            progress,
+        )
+    assert list(tmp_path.iterdir()) == []
+    assert connections[0].sock is None
+    assert connections[0].close_calls == 1
+
+
+def test_real_http11_truncated_download_releases_resources(live_keepalive_transport, tmp_path):
+    transport, connections = live_keepalive_transport
+    with pytest.raises(ModsError):
+        transport.download(
+            "https://cf-files.nexusmods.com/truncated",
+            tmp_path / "archive.zip",
+            threading.Event(),
+            lambda *_: None,
+        )
+    assert list(tmp_path.iterdir()) == []
+    assert connections[0].sock is None
+    assert connections[0].close_calls == 1
+
+
+def test_owned_response_double_close_is_safe(monkeypatch):
+    import decky_mods.network as network
+
+    closed = []
+    response = Response(b"{}")
+
+    class Connection:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def request(self, *args, **kwargs):
+            pass
+
+        def getresponse(self):
+            return response
+
+        def close(self):
+            closed.append(True)
+
+    monkeypatch.setattr(network, "_PinnedHTTPS", Connection)
+    owned = SafeTransport()._once("https://api.nexusmods.com/a", {})
+    owned.close()
+    owned.close()
+    assert response.closed
+    assert closed == [True]
+
+
+def test_getresponse_error_closes_connection_without_echo(monkeypatch):
+    import decky_mods.network as network
+
+    closed = []
+
+    class Connection:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def request(self, *args, **kwargs):
+            pass
+
+        def getresponse(self):
+            raise http.client.HTTPException("private credential")
+
+        def close(self):
+            closed.append(True)
+
+    monkeypatch.setattr(network, "_PinnedHTTPS", Connection)
+    with pytest.raises(ModsError) as error:
+        SafeTransport()._once("https://api.nexusmods.com/a?key=secret", {})
+    assert closed == [True]
+    assert "secret" not in str(error.value)
+    assert "private" not in str(error.value)

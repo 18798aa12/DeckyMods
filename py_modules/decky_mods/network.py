@@ -10,6 +10,7 @@ import tempfile
 import threading
 from collections.abc import Callable
 from pathlib import Path
+from types import TracebackType
 from urllib.parse import SplitResult, urljoin, urlsplit
 
 from .dns_fallback import resolve_public
@@ -99,10 +100,50 @@ def _status_error(status: int) -> None:
         raise ModsError(messages.get(status, "Nexus 服务暂时不可用，请稍后重试"))
 
 
+class _OwnedResponse:
+    """Keep a persistent HTTP connection alive until its response is consumed."""
+
+    def __init__(
+        self, response: http.client.HTTPResponse, connection: http.client.HTTPConnection
+    ) -> None:
+        self._response = response
+        self._connection = connection
+        self._closed = False
+
+    @property
+    def status(self) -> int:
+        return self._response.status
+
+    def getheader(self, name: str, default: str | None = None) -> str | None:
+        return self._response.getheader(name, default)
+
+    def read(self, amount: int | None = None) -> bytes:
+        return self._response.read(amount)
+
+    def close(self) -> None:
+        if not self._closed:
+            self._closed = True
+            try:
+                self._response.close()
+            finally:
+                self._connection.close()
+
+    def __enter__(self) -> "_OwnedResponse":
+        return self
+
+    def __exit__(
+        self,
+        exception_type: type[BaseException] | None,
+        exception: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        self.close()
+
+
 class SafeTransport:
     """No proxy environment, cookies, referer, redirects with API credentials, or URL logging."""
 
-    def _once(self, url: str, headers: dict[str, str]) -> http.client.HTTPResponse:
+    def _once(self, url: str, headers: dict[str, str]) -> _OwnedResponse:
         parsed = urlsplit(url)
         connection = _PinnedHTTPS(parsed.hostname, timeout=20, context=ssl.create_default_context())
         try:
@@ -110,15 +151,15 @@ class SafeTransport:
             if parsed.query:
                 path += "?" + parsed.query
             connection.request("GET", path, headers=headers)
-            response = connection.getresponse()
-            # HTTPResponse retains its socket file; closing it owns cleanup.
-            connection.close()
-            return response
-        except (OSError, http.client.HTTPException):
+            return _OwnedResponse(connection.getresponse(), connection)
+        except (OSError, http.client.HTTPException, ValueError):
             connection.close()
             raise ModsError("连接 Nexus 失败，请检查网络后重试") from None
+        except BaseException:
+            connection.close()
+            raise
 
-    def _open(self, url: str, headers: dict[str, str], *, api: bool) -> http.client.HTTPResponse:
+    def _open(self, url: str, headers: dict[str, str], *, api: bool) -> _OwnedResponse:
         for _ in range(6):
             validate_url(url, api=api)
             response = self._once(url, headers)

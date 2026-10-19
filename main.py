@@ -5,13 +5,17 @@ import os
 import pwd
 import sys
 from pathlib import Path
+from typing import TypeVar
 
 import decky
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "py_modules"))
 
 from decky_mods.errors import ModsError  # noqa: E402
+from decky_mods.nxm import NxmHandler  # noqa: E402
 from decky_mods.service import Service  # noqa: E402
+
+_T = TypeVar("_T")
 
 
 class Plugin:
@@ -19,24 +23,72 @@ class Plugin:
         self.service: Service | None = None
         self.receiver: asyncio.Task | None = None
         self.initial_error: str | None = None
+        self._closing = False
+        self._uninstall_requested = False
+        self._uninstall_handler: NxmHandler | None = None
+
+    async def _finish_worker(self, task: asyncio.Task[_T]) -> tuple[_T, bool]:
+        cancelled = False
+        while True:
+            try:
+                return await asyncio.shield(task), cancelled
+            except asyncio.CancelledError:
+                self._closing = True
+                cancelled = True
+                if task.cancelled():
+                    raise
 
     async def _main(self) -> None:
+        service: Service | None = None
         try:
+            if self._closing:
+                return
             if os.geteuid() == 0:
                 raise ModsError("DeckyMods 应以普通 Deck 用户运行，请检查完整 ZIP 的无 root 标记")
             home = Path(getattr(decky, "DECKY_USER_HOME", pwd.getpwuid(os.getuid()).pw_dir))
-            self.service = await asyncio.to_thread(
-                Service,
-                Path(decky.DECKY_PLUGIN_DIR),
-                Path(decky.DECKY_PLUGIN_SETTINGS_DIR) / "backend",
-                home=home,
+            construction = asyncio.create_task(
+                asyncio.to_thread(
+                    Service,
+                    Path(decky.DECKY_PLUGIN_DIR),
+                    Path(decky.DECKY_PLUGIN_SETTINGS_DIR) / "backend",
+                    home=home,
+                )
             )
-            await asyncio.to_thread(self.service.recover_all)
+            service, cancelled = await self._finish_worker(construction)
+            if cancelled:
+                raise asyncio.CancelledError
+            if self._closing:
+                return
+            recovery = asyncio.create_task(asyncio.to_thread(service.recover_all))
+            _, cancelled = await self._finish_worker(recovery)
+            if cancelled:
+                raise asyncio.CancelledError
+            if self._closing:
+                return
+            self.service = service
+            service = None
             self.receiver = asyncio.create_task(self._receive(), name="DeckyMods NXM receiver")
         except ModsError as error:
             self.initial_error = str(error)
         except Exception:
             self.initial_error = "插件初始化失败，请检查安装包、普通用户权限及私有设置目录"
+        finally:
+            if service is not None:
+                try:
+                    self._uninstall_handler = service.handler
+                    if self._uninstall_requested:
+                        await self._uninstall()
+                except Exception:
+                    self.initial_error = "插件协议关联未能恢复，请重新加载插件后重试"
+                finally:
+                    try:
+                        _, cancelled = await self._finish_worker(
+                            asyncio.create_task(asyncio.to_thread(service.close))
+                        )
+                        if cancelled:
+                            raise asyncio.CancelledError
+                    except Exception:
+                        self.initial_error = "插件初始化资源未能关闭，请重新加载插件后重试"
 
     async def _receive(self) -> None:
         while True:
@@ -54,6 +106,7 @@ class Plugin:
             await asyncio.sleep(2)
 
     async def _unload(self) -> None:
+        self._closing = True
         if self.receiver:
             self.receiver.cancel()
             try:
@@ -61,15 +114,20 @@ class Plugin:
             except asyncio.CancelledError:
                 pass
             self.receiver = None
-        if self.service:
-            await asyncio.to_thread(self.service.close)
+        service, self.service = self.service, None
+        if service:
+            self._uninstall_handler = service.handler
+            await asyncio.to_thread(service.close)
 
     async def _uninstall(self) -> None:
-        if self.service:
-            if self.service.handler.status()["enabled"]:
-                await asyncio.to_thread(self.service.handler.set_enabled, False)
+        self._uninstall_requested = True
+        handler = self.service.handler if self.service else self._uninstall_handler
+        if handler and handler.status()["enabled"]:
+            await asyncio.to_thread(handler.set_enabled, False)
 
     async def _call(self, method: str, *args) -> dict:
+        if self._closing:
+            return {"ok": False, "error": "插件已卸载，请重新打开插件后重试"}
         if self.service is None:
             return {"ok": False, "error": self.initial_error or "插件正在初始化，请稍后重试"}
         try:

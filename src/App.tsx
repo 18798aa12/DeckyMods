@@ -78,6 +78,19 @@ export function App() {
       );
     }
   }, []);
+  const updateGames = useCallback((next: readonly Game[]): void => {
+    setGames(next);
+    const id = selectedRef.current;
+    if (!id) return;
+    const selected = next.find((game) => game.id === id);
+    if (!selected) {
+      selectedRef.current = "";
+      setSelectedId("");
+      setView(null);
+    } else {
+      setView((current) => current?.game.id === id ? { ...current, game: selected } : current);
+    }
+  }, []);
   useEffect(() => {
     if (!visible) return;
     let active = true;
@@ -88,7 +101,7 @@ export function App() {
       const token = revision.current;
       const gameId = selectedRef.current;
       try {
-        const [nextStatus, nextGames, nextView] = await Promise.all([
+        const [nextStatus, nextGames, nextView] = await Promise.allSettled([
           backend.getStatus(),
           backend.listGames(),
           gameId ? backend.getGame(gameId) : Promise.resolve(null),
@@ -99,10 +112,14 @@ export function App() {
           revision.current === token &&
           !busyRef.current
         ) {
-          setStatus(nextStatus);
-          setGames(nextGames);
-          if (nextView && selectedRef.current === gameId) updateView(nextView);
-          setBackgroundError(null);
+          if (nextStatus.status === "fulfilled") setStatus(nextStatus.value);
+          if (nextGames.status === "fulfilled") updateGames(nextGames.value);
+          if (selectedRef.current === gameId) {
+            if (nextView.status === "fulfilled" && nextView.value) updateView(nextView.value);
+            if (nextView.status === "rejected") setView(null);
+          }
+          const failed = [nextStatus, nextGames, nextView].find((result) => result.status === "rejected");
+          setBackgroundError(failed?.status === "rejected" ? safeError(failed.reason) : null);
         }
       } catch (caught) {
         if (active && mounted.current && revision.current === token)
@@ -119,7 +136,7 @@ export function App() {
       active = false;
       clearInterval(interval);
     };
-  }, [visible, games.length, updateView]);
+  }, [visible, games.length, updateView, updateGames]);
   const select = (id: string): void => {
     void run(
       "游戏已选择",
@@ -181,7 +198,7 @@ export function App() {
             busy={busy}
             onSelect={select}
             onRefresh={() => {
-              void run("Steam 游戏已重新扫描", backend.listGames, setGames);
+              void run("Steam 游戏已重新扫描", backend.listGames, updateGames);
             }}
           />
           {view && (

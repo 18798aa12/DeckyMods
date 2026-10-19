@@ -55,6 +55,24 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
 
 describe("automatic Steam launch setup", () => {
+  it.each([
+    { installed: false, path: null },
+    { path: "/games/re7-new" },
+    { app_id: "other-app" },
+    { build_id: "new-build" },
+  ])("refreshes launch controls when installation identity changes: %j", async (identity) => {
+    mocks.getLaunchSetup.mockResolvedValue({ ...setup, auto_enabled: false });
+    const rendered = render(panel());
+    await screen.findByText(setup.reason);
+    mocks.getLaunchSetup.mockResolvedValue({ ...setup, supported: false, required: false, reason: "安装状态已重新核对" });
+    rendered.rerender(panel({ ...view, game: { ...view.game, ...identity } }));
+    await screen.findByText("安装状态已重新核对");
+    expect(mocks.getLaunchSetup).toHaveBeenCalledTimes(2);
+    expect(mocks.write).not.toHaveBeenCalled();
+    if (identity.installed === false) {
+      expect((screen.getByRole("button", { name: "重新检查启动项" }) as HTMLButtonElement).disabled).toBe(true);
+    }
+  });
   it("does not reserve the shared action guard for unrecognized requirements", async () => {
     mocks.getLaunchSetup.mockResolvedValue({ ...setup, supported: false, required: false });
     const invoked = vi.fn();
@@ -207,14 +225,15 @@ describe("automatic Steam launch setup", () => {
     await screen.findByText("启动项已检查并配置");
     expect(screen.getByRole("button", { name: "恢复首次自动配置前的启动项" })).toBeTruthy();
   });
-  it("does not show old-game completion on the newly selected game", async () => {
+  it.each(["game", "installation"])("ignores completion after changing %s", async (context) => {
     const pending = deferred<string>();
     mocks.write.mockReturnValueOnce(pending.promise);
     const rendered = render(panel());
     await waitFor(() => expect(mocks.write).toHaveBeenCalledTimes(1));
     mocks.getLaunchSetup.mockResolvedValue({ ...setup, supported: false, required: false, reason: "此游戏请手动核对", app_id: "2" });
-    rendered.rerender(panel({ ...view, game: { ...view.game, id: "other", app_id: "2" } }));
-    pending.resolve(change.after);
+    rendered.rerender(panel({ ...view, game: { ...view.game,
+      id: context === "game" ? "other" : view.game.id, path: "/games/new-install", app_id: "2" } }));
+    await act(async () => { pending.resolve(change.after); });
     expect(await screen.findByText("此游戏请手动核对")).toBeTruthy();
     expect(screen.queryByText("启动项已检查并配置")).toBeNull();
   });

@@ -15,23 +15,27 @@ interface Props {
 
 export function LaunchPanel({ view, jobs, busy, run }: Props) {
   const gameId = view.game.id;
+  const installation = JSON.stringify([
+    gameId, view.game.installed, view.game.path, view.game.app_id, view.game.build_id,
+  ]);
   const [setup, setSetup] = useState<LaunchSetup | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const currentGame = useRef({ id: gameId, generation: 0 });
+  const currentGame = useRef({ id: gameId, installation, generation: 0 });
   const alive = useRef(true);
   const attempted = useRef("");
   const setupRevision = useRef(0);
-  const blocked = Boolean(view.game.running || view.game.updating || view.recovery_error);
+  const unavailable = !view.game.installed || !view.game.path;
+  const blocked = Boolean(unavailable || view.game.running || view.game.updating || view.recovery_error);
   const signature = JSON.stringify([
-    gameId,
+    installation,
     view.mods.filter((mod) => mod.enabled).map((mod) => mod.id).sort(),
     jobs.filter((job) => job.game_id === gameId && job.phase === "complete").map((job) => job.id).sort(),
     blocked,
   ]);
-  if (currentGame.current.id !== gameId) {
-    currentGame.current = { id: gameId, generation: currentGame.current.generation + 1 };
+  if (currentGame.current.installation !== installation) {
+    currentGame.current = { id: gameId, installation, generation: currentGame.current.generation + 1 };
   }
   useEffect(() => {
     alive.current = true;
@@ -92,6 +96,7 @@ export function LaunchPanel({ view, jobs, busy, run }: Props) {
   }, [busy, blocked, pending, signature, synchronize, setup]);
 
   const toggle = (enabled: boolean): void => {
+    if (busy || blocked || pending) return;
     const id = gameId;
     const generation = currentGame.current.generation;
     void run(enabled ? "已开启自动启动项配置" : "已关闭自动启动项配置", async () => {
@@ -104,7 +109,7 @@ export function LaunchPanel({ view, jobs, busy, run }: Props) {
           setSetup(next);
           setMessage(null);
         }
-        if (enabled) {
+        if (enabled && isCurrent(id, generation)) {
           attempted.current = signature;
           const result = await synchronizeLaunchOptions(id);
           if (isCurrent(id, generation)) {
@@ -125,6 +130,7 @@ export function LaunchPanel({ view, jobs, busy, run }: Props) {
   return (
     <PanelSection title="MOD 启动项">
       <Note>{setup?.reason ?? "正在识别启动项要求…"}</Note>
+      {unavailable && <Note>游戏未安装或目录暂不可用，请连接存储设备后重新扫描。</Note>}
       {view.game.running && <Note>请先退出游戏，退出后会自动检查启动项。</Note>}
       {view.game.updating && <Note>Steam 更新中，完成后会自动检查启动项。</Note>}
       {view.recovery_error && <Note>先处理文件恢复问题，再配置启动项。</Note>}

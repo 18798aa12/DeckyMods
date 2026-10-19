@@ -12,6 +12,8 @@ from decky_mods.nxm_helper import enqueue
 def handler(tmp_path, monkeypatch):
     home = tmp_path / "home"
     home.mkdir()
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
     monkeypatch.setattr("decky_mods.nxm.sys.platform", "linux")
     monkeypatch.setattr("decky_mods.nxm.shutil.which", lambda _name: "/usr/bin/xdg-mime")
     state = {"default": "old-manager.desktop", "calls": []}
@@ -25,6 +27,13 @@ def handler(tmp_path, monkeypatch):
 
     monkeypatch.setattr("decky_mods.nxm.subprocess.run", run)
     return NxmHandler(home / ".local/share/DeckyMods", Path(__file__).parents[1], home), state
+
+
+def test_foreign_xdg_config_remains_blocked(handler, monkeypatch, tmp_path):
+    nxm, _ = handler
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "foreign"))
+    with pytest.raises(ModsError, match="当前用户"):
+        nxm._remove_empty_default(nxm.home / ".local/share/applications")
 
 
 def test_handler_opt_in_preserves_restores_previous(handler):

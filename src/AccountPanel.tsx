@@ -45,8 +45,12 @@ export function AccountPanel({
       {expanded && (
         <>
           <Note>
-            在 Nexus 官方网页登录，再到个人设置获取 Personal API
-            Key。插件不收集账号密码或浏览器 Cookie。
+            普通会员也可使用个人 API Key。在 Nexus 官方网页登录后，
+            打开 API Access 页面，找到 Personal API Key，生成或显示个人密钥。
+            如果顶部只有已授权应用，请继续往下找个人密钥区域。
+          </Note>
+          <Note>
+            不绑定也可在网页下载后导入本地压缩包。插件不收集账号密码或浏览器 Cookie。
           </Note>
           <Action
             onClick={() => {
@@ -61,7 +65,7 @@ export function AccountPanel({
           <Action
             onClick={() => {
               void run("已打开 API Key 设置", async () => {
-                openNexus("https://www.nexusmods.com/users/myaccount?tab=api");
+                openNexus("https://www.nexusmods.com/users/myaccount?tab=api%20access");
                 return true;
               });
             }}

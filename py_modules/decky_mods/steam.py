@@ -193,12 +193,17 @@ class SteamDiscovery:
             "build_id": build_id,
             "running": state.get("Running") == "1",
             "updating": flags is not None and int(flags) != 4,
+            # Pending/paused downloads (including missing/corrupt files) still lock
+            # MOD writes, but do not perform disk work that blocks a plugin upgrade.
+            # Unrecognized states remain conservative; this never grants MOD access.
+            "update_active": flags is not None and bool(int(flags) & ~(2 | 4 | 32 | 128 | 512)),
         }
 
     def discover(self) -> list[dict]:
         """Keep catalog identities, then include other validated installed Steam titles."""
         libraries, issues = self._libraries()
         result: list[dict] = []
+        roots = InstallationRoots()
         for original in self.catalog:
             found: dict | None = None
             for app_id in original["steam_app_ids"]:
@@ -222,16 +227,17 @@ class SteamDiscovery:
                 "updating": False,
             }
             if found:
-                base = {**base, **found, "name": original["name"], "installed": True}
-            result.append(base)
-        known = {app_id for game in self.catalog for app_id in game["steam_app_ids"]}
-        roots = InstallationRoots()
-        for game in result:
-            if game["installed"]:
                 try:
-                    roots.register(Path(game["path"]))
+                    if roots.register(Path(found["path"]), exclusive=True):
+                        base = {**base, **found, "name": original["name"], "installed": True}
+                    else:
+                        issues.append(
+                            "部分 Steam 游戏安装目录与其他游戏重叠，已跳过以保护 MOD 记录"
+                        )
                 except OSError:
                     issues.append("部分 Steam 游戏目录已变化，请刷新游戏库后重试")
+            result.append(base)
+        known = {app_id for game in self.catalog for app_id in game["steam_app_ids"]}
         manifests, scan_issues = manifest_candidates(libraries)
         issues.extend(scan_issues)
         for library, app_id in sorted(manifests, key=lambda item: (int(item[1]), str(item[0]))):

@@ -355,3 +355,30 @@ def test_reference_overflow_does_not_silently_drop_owners(library, monkeypatch):
     monkeypatch.setattr("decky_mods.game_identities.MAX_IDENTITIES", 1)
     with pytest.raises(ModsError, match="身份|归属"):
         instance.list_games()
+
+
+def test_paused_download_state_survives_legacy_ownership_without_changing_mod_or_backup(
+    library, monkeypatch
+):
+    start, home, steam, root = library
+    (root / "settings.ini").write_bytes(b"original")
+    original = start()
+    job = ready(original, home)
+    original.install_plan(job["plan_id"], True)
+    assert wait_job(original, job["id"])["phase"] == "complete"
+    mod = original.get_game(LEGACY)["mods"][0]
+    original.close()
+    manifest = steam / f"steamapps/appmanifest_{APP}.acf"
+    manifest.write_text(manifest.read_text().replace('"StateFlags" "4"', '"StateFlags" "550"'))
+    current = start([reviewed()])
+    paused = assert_legacy(current)
+    assert paused["updating"] is True and paused["update_active"] is False
+    monkeypatch.setattr(current.updates, "prepare", lambda: {"version": "9.0.0"})
+    assert current.prepare_update() == {"version": "9.0.0"}
+    assert current.get_game(LEGACY)["mods"] == [mod]
+    assert (root / "settings.ini").read_bytes() == b"modified"
+    with pytest.raises(ModsError):
+        current.set_mod_enabled(LEGACY, mod["id"], False)
+    manifest.write_text(manifest.read_text().replace('"StateFlags" "550"', '"StateFlags" "4"'))
+    current.uninstall_mod(LEGACY, mod["id"])
+    assert (root / "settings.ini").read_bytes() == b"original"

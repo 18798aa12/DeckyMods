@@ -84,3 +84,11 @@ All workers are sharing this checkout; never revert other workers' changes. Test
 - 资源 MOD 的启用和前置恢复串行；恢复不能关闭活跃 MOD 依赖的资源加载开关。
 - 取消初始化须等待不可取消的线程结束并清理。兼容 Decky 先 `_unload` 再 `_uninstall` 的删除顺序，保留协议恢复能力，不删除个人账户。
 - 单项轮询失败保留其他成功结果；失效游戏视图停止操作，手动扫描与自动扫描采用一致的选择清理。启动项状态按游戏身份、安装状态、路径、AppID、Build ID 重新判断。
+
+## 0.3.0 researched installation routes
+
+`get_install_guide(game_id)` returns folded-on-demand public methods with versions, destinations, prerequisites and source URLs. The bundled research covers113 independent Steam games; the145-game catalog retains existing identities. A research `implemented_candidate` is documentation only. Fixed code separately exposes18 limited file schemes across5 handlers.
+
+`install_mode` additionally accepts `method:<reviewed-id>` only when the selected game has that compiled permission. Each task retains its mode across Nexus browser handoff; explicit NXM routes require selected-game identity. Legacy `auto` and `game_root` behavior and managed MOD ownership remain unchanged. Installation still needs a checked plan; arbitrary destination/handler values are never accepted.
+
+`update_active` distinguishes conservative active/unknown Steam maintenance from recognized pending/paused flags for plugin updates only. `updating` remains conservative for MOD operations. Running games and active MOD tasks still block plugin updates. Known user-facing failures are redacted and shown; arbitrary transport exceptions remain generic.

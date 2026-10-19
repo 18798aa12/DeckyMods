@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { forwardRef, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Game, GameView, Job, RunAction } from "./types";
-const mocks = vi.hoisted(() => ({ getImportDirectory: vi.fn(), importArchive: vi.fn(), resolveMod: vi.fn(), beginDownload: vi.fn(), acceptNxm: vi.fn(), setGameRoot: vi.fn(), picker: vi.fn(), external: vi.fn() }));
+const mocks = vi.hoisted(() => ({ getInstallGuide: vi.fn(), getImportDirectory: vi.fn(), importArchive: vi.fn(), resolveMod: vi.fn(), beginDownload: vi.fn(), acceptNxm: vi.fn(), setGameRoot: vi.fn(), picker: vi.fn(), external: vi.fn() }));
 vi.mock("./rpc", () => ({ backend: mocks }));
 vi.mock("@decky/api", () => ({ useQuickAccessVisible: () => true, openFilePicker: mocks.picker, FileSelectionType: { FILE: 0, FOLDER: 1 } }));
 vi.mock("@decky/ui", () => ({
@@ -163,4 +163,37 @@ describe("explicit generic root archive installation", () => {
     await act(async () => { finishPicker?.({ path: "/games/Manual" }); });
     expect(mocks.setGameRoot).not.toHaveBeenCalled();
   });
+});
+
+
+describe("researched installation route integration", () => {
+  it("passes an explicitly selected route to local imports and resets it when root mode is chosen", async () => {
+    mocks.getInstallGuide.mockResolvedValue({ game_id: game.id, name: game.name, checked_at: "2026-10-19", notes: [], sources: [], methods: [{id: "profile-smapi", label: "SMAPI profile", versions: ["1.6"], format: "smapi", destination: "Mods", requirements: [], source_urls: [], can_install: true, install_mode: "method:profile-smapi"}] });
+    renderPanel({...game, nexus_domain: ""});
+    fireEvent.click(screen.getByRole("button", {name: "展开安装指南"}));
+    fireEvent.click(await screen.findByRole("button", {name: "展开：SMAPI profile"}));
+    fireEvent.click(screen.getByRole("button", {name: "选择安装方式：SMAPI profile"}));
+    fireEvent.click(screen.getByRole("button", {name: "选择本地 MOD 压缩包"}));
+    await waitFor(() => expect(mocks.importArchive).toHaveBeenCalledWith(game.id, "/home/deck/Downloads/demo.zip", "demo", "method:profile-smapi"));
+    await waitFor(() => expect((screen.getByLabelText("按游戏根目录安装（未适配游戏）") as HTMLInputElement).disabled).toBe(false));
+    fireEvent.click(screen.getByLabelText("按游戏根目录安装（未适配游戏）"));
+    fireEvent.click(screen.getByRole("button", {name: "选择本地 MOD 压缩包"}));
+    await waitFor(() => expect(mocks.importArchive).toHaveBeenLastCalledWith(game.id, "/home/deck/Downloads/demo.zip", "demo", "game_root"));
+  });
+});
+
+
+it("keeps a selected guide route through Nexus download and explicit NXM handoff", async () => {
+  mocks.getInstallGuide.mockResolvedValue({game_id: game.id, name: game.name, checked_at: "2026-10-19", notes: [], sources: [], methods: [{id: "profile-smapi", label: "SMAPI profile", versions: ["1.6"], format: "smapi", destination: "Mods", requirements: [], source_urls: [], can_install: true, install_mode: "method:profile-smapi"}]});
+  renderPanel();
+  fireEvent.click(screen.getByRole("button", {name: "展开安装指南"}));
+  fireEvent.click(await screen.findByRole("button", {name: "展开：SMAPI profile"}));
+  fireEvent.click(screen.getByRole("button", {name: "选择安装方式：SMAPI profile"}));
+  fireEvent.change(screen.getByLabelText("MOD 编号或 Nexus 网址"), {target: {value: "7"}});
+  fireEvent.click(screen.getByRole("button", {name: "查找 MOD"}));
+  fireEvent.click(await screen.findByRole("button", {name: "获取所选文件"}));
+  await waitFor(() => expect(mocks.beginDownload).toHaveBeenCalledWith(game.id, 7, 9, "method:profile-smapi"));
+  fireEvent.change(screen.getByLabelText("手动接收 NXM 链接（可选）"), {target: {value: "nxm://other/mods/7/files/9"}});
+  fireEvent.click(screen.getByRole("button", {name: "接收 NXM 下载"}));
+  await waitFor(() => expect(mocks.acceptNxm).toHaveBeenCalledWith("nxm://other/mods/7/files/9", "method:profile-smapi", game.id));
 });

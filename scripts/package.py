@@ -58,6 +58,7 @@ def stage_plugin(stage: Path, wheel: Path) -> None:
         "THIRD_PARTY_NOTICES.md",
         "README.md",
         "data/games.json",
+        "data/install_guides.json",
         "data/dependencies.json",
         "assets/update-allowed-signers",
     )

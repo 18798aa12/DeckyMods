@@ -17,7 +17,10 @@ export default {
   treeshake: "smallest",
   plugins: [
     { name: "clean-dist", buildStart: () => rmSync(dist, { recursive: true, force: true }) },
-    typescript(),
+    typescript({
+      compilerOptions: { rootDir: "src" },
+      exclude: ["**/*.test.ts", "**/*.test.tsx", "**/test/**"],
+    }),
     commonjs(),
     nodeResolve({ browser: true }),
     externalGlobals({

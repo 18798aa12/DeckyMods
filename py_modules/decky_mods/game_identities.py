@@ -14,7 +14,7 @@ MAX_IDENTITIES = 4096
 MAX_LEDGER_BYTES = 16 * 1024 * 1024
 _IDENT = re.compile(r"[a-z0-9][a-z0-9-]{0,79}\Z")
 _ERROR = "游戏身份归属记录无效或冲突，请保留私有设置和 MOD 备份后检查记录"
-_LIVE_FIELDS = ("path", "app_id", "build_id", "running", "updating")
+_LIVE_FIELDS = ("path", "app_id", "build_id", "running", "updating", "update_active")
 
 
 def _valid_name(value: object) -> bool:
@@ -146,7 +146,11 @@ class GameIdentities:
             "updating": False,
         }
         if live is not None and live.get("app_id") == app_id and live.get("path"):
-            return {**base, **{key: live.get(key) for key in _LIVE_FIELDS}, "installed": True}
+            return {
+                **base,
+                **{key: live[key] for key in _LIVE_FIELDS if key in live},
+                "installed": True,
+            }
         return base
 
     def discover(self) -> list[dict]:

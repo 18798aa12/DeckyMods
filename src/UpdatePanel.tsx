@@ -2,11 +2,14 @@ import { PanelSection, PanelSectionRow, TextField, ToggleField } from "@decky/ui
 import { useEffect, useRef, useState } from "react";
 import { Action, Note } from "./controls";
 import { requestPluginUpdate } from "./deckyUpdate";
+import { UserFacingError } from "./errors";
 import { backend } from "./rpc";
 import { styles } from "./styles";
 import type { RunAction, UpdateStatus } from "./types";
 
 const READ_ERROR = "无法读取更新状态，请重新打开插件后重试。";
+const failureReason = (fallback: string, caught: unknown): string =>
+  caught instanceof UserFacingError ? `${fallback} 原因：${caught.message}` : fallback;
 
 interface Props {
   readonly busy: boolean;
@@ -55,12 +58,12 @@ export function UpdatePanel({ busy, run }: Props) {
       try {
         await operation();
         return null;
-      } catch {
-        if (alive.current) setError(failure);
+      } catch (caught) {
+        if (alive.current) setError(failureReason(failure, caught));
         return null;
       }
-    }).catch(() => {
-      if (alive.current) setError(failure);
+    }).catch((caught: unknown) => {
+      if (alive.current) setError(failureReason(failure, caught));
     }).finally(() => {
       revision.current += 1;
       locked.current = false;

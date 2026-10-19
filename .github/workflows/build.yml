@@ -27,10 +27,10 @@ jobs:
       - run: python -m pytest --cov=decky_mods
       - run: ruff check main.py py_modules scripts tests && ruff format --check main.py py_modules scripts tests
       - run: python -m scripts.package
-      - run: python -m scripts.verify_release release/DeckyMods-v0.2.14.zip
+      - run: python -m scripts.verify_release release/DeckyMods-v0.3.0.zip
       - name: Packaged Linux smoke without root
         run: |
-          unzip -q release/DeckyMods-v0.2.14.zip -d /tmp/deckymods-artifact
+          unzip -q release/DeckyMods-v0.3.0.zip -d /tmp/deckymods-artifact
           python scripts/linux_smoke.py /tmp/deckymods-artifact/DeckyMods
       - uses: actions/upload-artifact@v4
         with:

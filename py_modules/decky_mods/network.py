@@ -20,7 +20,7 @@ API_HOST = "api.nexusmods.com"
 MAX_DOWNLOAD = 8 * 1024**3
 MAX_JSON = 8 * 1024**2
 REDIRECTS = {301, 302, 303, 307, 308}
-BASE_HEADERS = {"User-Agent": "DeckyMods/0.2.14", "Accept-Encoding": "identity"}
+BASE_HEADERS = {"User-Agent": "DeckyMods/0.3.0", "Accept-Encoding": "identity"}
 
 
 def validate_url(url: str, *, api: bool) -> SplitResult:

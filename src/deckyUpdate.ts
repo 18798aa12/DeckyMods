@@ -1,4 +1,5 @@
 import type { UpdateArtifact } from "./types";
+import { UserFacingError } from "./errors";
 
 type DeckyWindow = { DeckyBackend?: { call?: (route: string, ...args: unknown[]) => Promise<unknown> } };
 
@@ -16,16 +17,16 @@ export async function requestPluginUpdate(artifact: UpdateArtifact): Promise<voi
       decodeURIComponent(uri.pathname).split("/").pop() !== filename
     ) throw new Error("Invalid handoff");
   } catch {
-    throw new Error("更新安装包信息无效，请重新检查更新。");
+    throw new UserFacingError("更新安装包信息无效，请重新检查更新。");
   }
   const native = (window as unknown as DeckyWindow).DeckyBackend;
   if (!native || typeof native.call !== "function") {
-    throw new Error("Decky 更新接口暂不可用，请在游戏模式中打开插件后重试。");
+    throw new UserFacingError("Decky 更新接口暂不可用，请在游戏模式中打开插件后重试。");
   }
   try {
     const result = await native.call("utilities/install_plugin", artifact.artifact, "DeckyMods", artifact.version, artifact.sha256, 2);
     if (result === false) throw new Error("Installation request rejected");
   } catch {
-    throw new Error("无法打开 Decky 更新确认窗口，请重试或在 Decky 设置中从 ZIP 安装。");
+    throw new UserFacingError("无法打开 Decky 更新确认窗口，请重试或在 Decky 设置中从 ZIP 安装。");
   }
 }

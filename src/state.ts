@@ -1,4 +1,5 @@
 import { Navigation } from "@decky/ui";
+import { UserFacingError } from "./errors";
 import type { Game, Job, Result } from "./types";
 export function safeError(error: unknown): string {
   const value =
@@ -16,7 +17,7 @@ export function safeError(error: unknown): string {
     .slice(0, 500);
 }
 export function unwrap<T>(result: Result<T>): T {
-  if (!result.ok) throw new Error(safeError(result.error));
+  if (!result.ok) throw new UserFacingError(safeError(result.error));
   return result.data;
 }
 export function capability(game: Game): string {

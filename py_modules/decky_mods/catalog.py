@@ -41,9 +41,12 @@ def load_catalog(plugin_dir: Path) -> list[dict]:
         for item in items:
             if not isinstance(item, dict):
                 raise ValueError("invalid game")
-            for key in ("id", "series", "nexus_domain"):
+            for key in ("id", "series"):
                 if not isinstance(item.get(key), str) or not _IDENT.fullmatch(item[key]):
                     raise ValueError("invalid identity")
+            domain = item.get("nexus_domain")
+            if not isinstance(domain, str) or (domain and not _IDENT.fullmatch(domain)):
+                raise ValueError("invalid Nexus mapping")
             if item["id"] in seen:
                 raise ValueError("duplicate game")
             seen.add(item["id"])

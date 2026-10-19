@@ -1,8 +1,8 @@
 # DeckyMods
 
-SteamOS / Steam Deck 上的 Decky MOD 管理插件。当前版本 **0.2.14，签名更新版**。
+SteamOS / Steam Deck 上的 Decky MOD 管理插件。当前版本 **0.3.0，安装指南与更新修复版**。
 
-[下载安装包](https://github.com/18798aa12/DeckyMods/releases/download/v0.2.14/DeckyMods-v0.2.14.zip) · [正式更新源](https://github.com/18798aa12/DeckyMods/releases/latest) · [发布记录](https://github.com/18798aa12/DeckyMods/releases)
+[下载安装包](https://github.com/18798aa12/DeckyMods/releases/download/v0.3.0/DeckyMods-v0.3.0.zip) · [正式更新源](https://github.com/18798aa12/DeckyMods/releases/latest) · [发布记录](https://github.com/18798aa12/DeckyMods/releases)
 
 本次十轮加固的逐版修复见 [迭代记录](docs/ITERATIONS.md)，过往问题及防回归要求见 [经验记录](docs/LESSONS.md)。更新保留个人配置、MOD 层和备份；开发过程不远程安装到用户设备。
 
@@ -10,13 +10,17 @@ SteamOS / Steam Deck 上的 Decky MOD 管理插件。当前版本 **0.2.14，签
 
 ## 游戏覆盖范围
 
-专用目录有 **72 款游戏、60 个不同系列**，包括 13 款生化危机 PC 游戏。另扫描已登记 Steam 游戏库中的其他已安装游戏，跳过 Proton、Steam Linux Runtime 等运行工具。未收录作品使用本地压缩包和显式根目录安装，不会猜测 Nexus 游戏域名或专用适配。识别目录不等于所有游戏都可以自动安装：
+目录现有 **145 款 Steam 游戏、100 个系列**，本轮新增 **113 款游戏的 244 条分版本安装路线**。研究优先覆盖常见 MOD 生态，逐项出处见 [安装方式研究](docs/INSTALL_METHODS.md)。其中包括 13 款生化危机 PC 游戏。另扫描已登记 Steam 游戏库中的其他已安装游戏，跳过 Proton、Steam Linux Runtime 等运行工具。未收录作品使用本地压缩包和显式根目录安装，不会猜测 Nexus 游戏域名或专用适配。识别目录不等于所有游戏都可以自动安装：
 
 | 等级 | 数量 | 当前能力 |
 | --- | ---: | --- |
 | 自动映射已实现 | 12 款 | 7 款旧引擎生化危机的现有资源替换，以及原有 5 款 UE PAK 游戏 |
 | 需要额外加载器 | 7 款 | 已适配 REFramework 文件结构；加载器须另行安装，支持自动检查并合并启动项 |
-| 仅识别/查询目录 | 53 款 | 展示游戏及 Nexus 资料；可显式选择通用根目录模式，自动适配仍待验证 |
+| 仅识别/查询目录 | 126 款 | 展示游戏及 Nexus 资料；可显式选择通用根目录模式，自动适配仍待验证 |
+
+另提供 **18 款游戏的 18 个显式文件安装方案**：SMAPI、Cyberpunk archive、巫师 3 Mods、Bethesda Data 与 BepInEx plugins。它们须从折叠的“安装指南”主动选择，不改变默认适配器，也不自动安装加载器、运行安装脚本或修改载入顺序。复杂 MOD 与外部工具仍按指南处理。
+
+展开指南可查看作者要求的游戏版本、目标目录、依赖及公开源码；每条方法再次折叠。只有已实现的受限方案提供选择按钮，随后仍须导入压缩包并确认预览。只做目录识别的游戏也支持显式根目录方式。
 
 **已在 Steam Deck 验证 RE7 的 Item Unlocker 脚本加载，其他游戏内效果仍待实测。** 不同版本、可选文件、FOMOD、脚本安装器、复杂前置和反作弊游戏不能通用处理；无法确定的布局会提示原因并阻止安装。完整映射及逐项来源见 [兼容表](docs/COMPATIBILITY.md)。
 
@@ -24,7 +28,7 @@ SteamOS / Steam Deck 上的 Decky MOD 管理插件。当前版本 **0.2.14，签
 
 ## 安装与添加 MOD
 
-1. 安装 Decky Loader，在 Decky 设置的开发者选项里选择“从 ZIP 安装插件”，选完整 `DeckyMods-v0.2.14.zip`。不要单独拷贝 `main.py`。插件不申请 root 权限。
+1. 安装 Decky Loader，在 Decky 设置的开发者选项里选择“从 ZIP 安装插件”，选完整 `DeckyMods-v0.3.0.zip`。不要单独拷贝 `main.py`。插件不申请 root 权限。
 2. 打开 DeckyMods，扫描 Steam 游戏库并选择游戏。支持 Steam 主库和在库清单中登记的 SD 卡库。
 3. 已有压缩包：在“添加 MOD”选择本地压缩包，文件放在当前用户的下载、文档或桌面目录（支持 XDG 配置）。先看安装预览，再确认。
 4. 下载 Nexus MOD：在账户区域打开 Nexus 登录和 API Access 页面，找到 Personal API Key 区域（普通会员也可生成），再将**个人 API Key**输入插件绑定。插件不接收 Nexus 密码或浏览器 Cookie。
@@ -64,7 +68,7 @@ API 绑定与网页登录是两套状态。API Key 可验证账号、查询 MOD 
 
 ## 插件更新
 
-提供每 6 小时自动检查、手动检查、下载校验及 Decky 原生确认安装。新安装默认使用本仓库 GitHub Release 签名来源，已有来源和开关会保留。也可以填写局域网来源；局域网方式需要 Mac 下载服务保持运行。大陆网络访问 GitHub 受阻时可继续使用局域网 ZIP。
+提供每 6 小时自动检查、手动检查、下载校验及 Decky 原生确认安装。暂停/待下载的游戏不再永久拦截插件更新；运行中游戏、活跃维护和 MOD 任务仍会阻止更新。界面显示脱敏后的具体失败原因。旧版若被暂停下载误拦截，可从 ZIP 覆盖安装一次本版，再继续使用插件内更新。新安装默认使用本仓库 GitHub Release 签名来源，已有来源和开关会保留。也可以填写局域网来源；局域网方式需要 Mac 下载服务保持运行。大陆网络访问 GitHub 受阻时可继续使用局域网 ZIP。
 
 更新清单经固定公钥验证，安装包校验大小、SHA256、版本、普通用户权限和完整文件结构；拒绝额外远程二进制下载。账户、配置与 MOD 数据保留。卸载原生协议绑定后，新版按已保存的用户意图恢复 NXM；只有主动“停用账户”才删除个人 API Key。
 
@@ -100,7 +104,7 @@ python3 -m venv .venv
 .venv/bin/python -m pytest --cov=decky_mods
 .venv/bin/ruff check main.py py_modules scripts tests
 .venv/bin/python -m scripts.package
-.venv/bin/python -m scripts.verify_release release/DeckyMods-v0.2.14.zip
+.venv/bin/python -m scripts.verify_release release/DeckyMods-v0.3.0.zip
 ```
 
 构建输入在 `data/dependencies.json` 固定版本及 SHA256；输出安装 ZIP、对应源码包和 SHA256SUMS。测试使用合成的游戏目录，不修改真实游戏或下载第三方 MOD。实机检查步骤见 [测试清单](docs/STEAM_DECK_TESTING.md)。

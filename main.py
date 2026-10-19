@@ -170,6 +170,9 @@ class Plugin:
     async def get_update_status(self) -> dict:
         return await self._call("get_update_status")
 
+    async def get_install_guide(self, game_id: str) -> dict:
+        return await self._call("get_install_guide", game_id)
+
     async def set_update_options(self, source: str, auto_check: bool) -> dict:
         return await self._call("set_update_options", source, auto_check)
 

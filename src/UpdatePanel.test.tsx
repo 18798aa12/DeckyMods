@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { StrictMode, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RunAction, UpdateStatus } from "./types";
+import { unwrap } from "./state";
 
 const mocks = vi.hoisted(() => ({ getUpdateStatus: vi.fn(), setUpdateOptions: vi.fn(), checkUpdate: vi.fn(), prepareUpdate: vi.fn(), install: vi.fn() }));
 vi.mock("./rpc", () => ({ backend: mocks }));
@@ -27,6 +28,16 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.resetAllMocks(); vi.useRealTimers(); });
 
 describe("signed plugin updates", () => {
+  it("shows a redacted backend reason instead of hiding every preparation failure", async () => {
+    mocks.getUpdateStatus.mockResolvedValue(available);
+    mocks.prepareUpdate.mockImplementation(async () => unwrap({ ok: false, error: "游戏正在运行，请退出后重试；token=synthetic-secret" }));
+    render(<UpdatePanel busy={false} run={run} />);
+    await screen.findByText("可更新至 0.2.0");
+    fireEvent.click(screen.getByRole("button", { name: "安装已验证更新" }));
+    expect((await screen.findByRole("alert")).textContent).toContain("游戏正在运行，请退出后重试");
+    expect(document.body.textContent).not.toContain("synthetic-secret");
+    expect(mocks.install).not.toHaveBeenCalled();
+  });
   it("clears a failed status read after polling recovers", async () => {
     vi.useFakeTimers();
     mocks.getUpdateStatus.mockRejectedValueOnce(new Error("temporary outage")).mockResolvedValue(available);

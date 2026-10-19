@@ -14,8 +14,9 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { backend } from "./rpc";
 import { Action, Note } from "./controls";
+import { InstallGuidePanel } from "./InstallGuidePanel";
 import { capability, formatBytes, openNexus, safeError } from "./state";
-import type { Game, GameView, Job, NexusMod, RunAction } from "./types";
+import type { Game, GameView, InstallMode, Job, NexusMod, RunAction } from "./types";
 interface Props {
   readonly game: Game;
   readonly busy: boolean;
@@ -23,13 +24,19 @@ interface Props {
   readonly onJob: (job: Job) => void;
   readonly onView?: (view: GameView) => void;
 }
-export function SourcePanel({ game, busy, run, onJob, onView }: Props) {
+export function SourcePanel(props: Props) {
+  const game = props.game;
+  const identity = JSON.stringify([game.id, game.installed, game.path, game.app_id, game.build_id, game.adapter, game.nexus_domain]);
+  return <SourceDetails key={identity} {...props} />;
+}
+function SourceDetails({ game, busy, run, onJob, onView }: Props) {
   const [reference, setReference] = useState("");
   const [nxm, setNxm] = useState("");
   const [mod, setMod] = useState<NexusMod | null>(null);
   const [file, setFile] = useState<number | null>(null);
   const [picking, setPicking] = useState<"archive" | "root" | "auto" | null>(null);
   const [rootInstall, setRootInstall] = useState(false);
+  const [methodMode, setMethodMode] = useState<InstallMode>("auto");
   const pickerLock = useRef(false);
   const fileControl = useRef<HTMLDivElement>(null);
   const restoreFocus = useRef(false);
@@ -39,8 +46,9 @@ export function SourcePanel({ game, busy, run, onJob, onView }: Props) {
   const hasNexusMapping = Boolean(game.nexus_domain.trim());
   const installBlocked = writeBlocked || Boolean(picking) || !game.installed ||
     !game.path?.startsWith("/") || Boolean(game.root_error) ||
-    (!hasNexusMapping && game.adapter === "catalog" && !rootInstall);
+    (!hasNexusMapping && game.adapter === "catalog" && !rootInstall && methodMode === "auto");
   const useGameRoot = game.adapter === "catalog" && rootInstall;
+  const installMode: InstallMode = useGameRoot ? "game_root" : methodMode;
   useEffect(() => {
     setRootInstall(false);
     setMod(null);
@@ -114,8 +122,8 @@ export function SourcePanel({ game, busy, run, onJob, onView }: Props) {
     if (!hasNexusMapping || installBlocked || !mod || file === null) return;
     void run(
       "下载任务已创建",
-      () => useGameRoot
-        ? backend.beginDownload(game.id, mod.mod_id, file, "game_root")
+      () => installMode !== "auto"
+        ? backend.beginDownload(game.id, mod.mod_id, file, installMode)
         : backend.beginDownload(game.id, mod.mod_id, file),
       (job) => {
         onJob(job);
@@ -169,8 +177,8 @@ export function SourcePanel({ game, busy, run, onJob, onView }: Props) {
               .pop()
               ?.replace(/\.(zip|7z|rar)$/i, "") || "本地 MOD";
           const title = [...name].slice(0, 120).join("");
-          return useGameRoot
-            ? backend.importArchive(game.id, selected.path, title, "game_root")
+          return installMode !== "auto"
+            ? backend.importArchive(game.id, selected.path, title, installMode)
             : backend.importArchive(game.id, selected.path, title);
         },
         (job) => {
@@ -182,8 +190,17 @@ export function SourcePanel({ game, busy, run, onJob, onView }: Props) {
     }
   };
   return (
+    <>
+    <InstallGuidePanel game={game} busy={writeBlocked || Boolean(picking)} selectedMode={installMode} onSelectMode={(mode) => {
+      setMethodMode(mode);
+      setRootInstall(false);
+    }} />
     <PanelSection title="添加 MOD">
       <Note>当前游戏：{game.name}</Note>
+      {methodMode !== "auto" && <>
+        <Note>已选择指南中的专用安装方式，请导入对应格式并核对安装预览。</Note>
+        <Action disabled={writeBlocked || Boolean(picking)} onClick={() => setMethodMode("auto")}>恢复默认安装方式</Action>
+      </>}
       <Note>
         {capability(game)}
         {game.running && (
@@ -209,7 +226,7 @@ export function SourcePanel({ game, busy, run, onJob, onView }: Props) {
               label="按游戏根目录安装（未适配游戏）"
               checked={rootInstall}
               disabled={writeBlocked || Boolean(picking)}
-              onChange={setRootInstall}
+              onChange={(enabled) => { setRootInstall(enabled); setMethodMode("auto"); }}
             />
           </PanelSectionRow>
           <Note>
@@ -341,8 +358,8 @@ export function SourcePanel({ game, busy, run, onJob, onView }: Props) {
         onClick={() => {
           const uri = nxm.trim();
           setNxm("");
-          void run("NXM 下载任务已接收", () => useGameRoot
-            ? backend.acceptNxm(uri, "game_root", game.id)
+          void run("NXM 下载任务已接收", () => installMode !== "auto"
+            ? backend.acceptNxm(uri, installMode, game.id)
             : backend.acceptNxm(uri), onJob);
         }}
       >
@@ -350,5 +367,6 @@ export function SourcePanel({ game, busy, run, onJob, onView }: Props) {
       </Action>
       </>}
     </PanelSection>
+    </>
   );
 }

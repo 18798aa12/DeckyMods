@@ -16,12 +16,14 @@ from .game_identities import GameIdentities
 from .game_roots import GameRoots
 from .gamefs import fingerprint
 from .imports import LocalArchives
+from .install_guides import InstallGuides
 from .jobs import Jobs
 from .launch_options import LaunchOptions
 from .mod_details import ModDetails
 from .nexus import NexusClient
 from .nxm import NxmHandler
 from .paths import private_directory
+from .profile_install import plan_profile
 from .re_setup import LOOSE_KEY, MODERN, PAK_KEY, RESettings
 from .root_install import plan_root_files
 from .steam import SteamDiscovery
@@ -61,10 +63,11 @@ class Service:
             self.handler.set_enabled(True)
         self.mod_details = ModDetails(directory / "mod-details", self.nexus)
         self.archives = LocalArchives(self.home)
+        self.install_guides = InstallGuides(plugin_dir)
         self.launch_options = LaunchOptions(directory / "launch-options")
         self.resident = RESettings(directory / "resident-settings")
         self.updates = UpdateManager(
-            plugin_dir, directory / "updates", "0.2.14", source=GITHUB_SOURCE
+            plugin_dir, directory / "updates", "0.3.0", source=GITHUB_SOURCE
         )
         self.downloads = directory / "downloads"
         private_directory(self.downloads)
@@ -74,7 +77,7 @@ class Service:
 
     def get_status(self) -> dict:
         return {
-            "version": "0.2.14",
+            "version": "0.3.0",
             "platform_supported": platform.system() == "Linux",
             "auth": self.nexus.status(),
             "jobs": self.get_jobs(),
@@ -124,8 +127,13 @@ class Service:
             mod = dict(mods[0])
         return self.mod_details.get(game, mod)
 
-    @staticmethod
-    def _install_mode(game: dict, mode: str) -> str:
+    def get_install_guide(self, game_id: str) -> dict:
+        return self.install_guides.for_game(self.get_game(game_id)["game"])
+
+    def _install_mode(self, game: dict, mode: str) -> str:
+        if isinstance(mode, str) and mode.startswith("method:"):
+            self.install_guides.resolve_mode(game, mode)
+            return mode
         if not isinstance(mode, str) or mode not in {"auto", "game_root"}:
             raise ModsError("安装模式无效，请重新选择")
         if mode == "game_root" and game["adapter"] != "catalog":
@@ -170,7 +178,10 @@ class Service:
 
     def prepare_update(self) -> dict:
         with self.lock:
-            if any(game.get("running") or game.get("updating") for game in self.list_games()):
+            if any(
+                game.get("running") or game.get("update_active", game.get("updating"))
+                for game in self.list_games()
+            ):
                 raise ModsError("请退出游戏并等待 Steam 更新完成，再安装插件更新")
             if any(
                 job["phase"] in {"scanning", "downloading", "installing", "queued"}
@@ -260,9 +271,11 @@ class Service:
         self, uri: str, install_mode: str = "auto", expected_game_id: str | None = None
     ) -> dict:
         grant = self.nexus.parse_nxm(uri)
-        if not isinstance(install_mode, str) or install_mode not in {"auto", "game_root"}:
+        if not isinstance(install_mode, str) or (
+            install_mode not in {"auto", "game_root"} and not install_mode.startswith("method:")
+        ):
             raise ModsError("安装模式无效，请重新选择")
-        if install_mode == "game_root":
+        if install_mode != "auto":
             if not expected_game_id:
                 raise ModsError("根目录安装必须先选择游戏")
             selected = self.roots.resolve(expected_game_id)
@@ -284,7 +297,7 @@ class Service:
                 raise ModsError("此文件对应多个游戏任务，请先取消多余任务再确认下载")
             if matches:
                 job = matches[0]
-                if install_mode == "game_root" and (
+                if install_mode != "auto" and (
                     job["game_id"] != expected_game_id
                     or self.jobs.get(job["id"]).get("install_mode", "auto") != install_mode
                 ):
@@ -376,11 +389,16 @@ class Service:
             job = self.jobs.get(ident)
             game = self.roots.resolve(job["game_id"])
             mode = self._install_mode(game, job.get("install_mode", "auto"))
-            mapping = (
-                plan_root_files(game, extracted)
-                if mode == "game_root"
-                else plan_files(game, extracted)
-            )
+            if mode.startswith("method:"):
+                mapping = plan_profile(
+                    game, extracted, self.install_guides.resolve_mode(game, mode)
+                )
+            else:
+                mapping = (
+                    plan_root_files(game, extracted)
+                    if mode == "game_root"
+                    else plan_files(game, extracted)
+                )
             metadata = self.mod_details.capture(
                 extracted, identity, job.get("archive_name", ""), game
             )

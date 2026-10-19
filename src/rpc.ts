@@ -5,6 +5,7 @@ import type {
   Game,
   GameView,
   InstallMode,
+  InstallGuide,
   ModDetails,
   Handler,
   Job,
@@ -21,6 +22,7 @@ import type {
 const getStatus = callable<[], Result<Status>>("get_status");
 const listGames = callable<[], Result<Game[]>>("list_games");
 const getGame = callable<[string], Result<GameView>>("get_game");
+const getInstallGuide = callable<[string], Result<InstallGuide>>("get_install_guide");
 const getModDetails = callable<[string, string], Result<ModDetails>>("get_mod_details");
 const setGameRoot = callable<[string, "auto" | "manual", string], Result<GameView>>("set_game_root");
 const getResidentStatus = callable<[string], Result<ResidentStatus>>("get_resident_status");
@@ -64,6 +66,7 @@ export const backend = {
   getStatus: async (): Promise<Status> => unwrap(await getStatus()),
   listGames: async (): Promise<Game[]> => unwrap(await listGames()),
   getGame: async (id: string): Promise<GameView> => unwrap(await getGame(id)),
+  getInstallGuide: async (id: string): Promise<InstallGuide> => unwrap(await getInstallGuide(id)),
   getModDetails: async (game: string, mod: string): Promise<ModDetails> => unwrap(await getModDetails(game, mod)),
   setGameRoot: async (game: string, mode: "auto" | "manual", path = ""): Promise<GameView> => unwrap(await setGameRoot(game, mode, path)),
   getResidentStatus: async (id: string): Promise<ResidentStatus> => unwrap(await getResidentStatus(id)),

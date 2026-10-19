@@ -41,7 +41,25 @@ export interface Mod {
   readonly nexus_file_id: number | null;
   readonly source_url: string | null;
 }
-export type InstallMode = "auto" | "game_root";
+export type InstallMode = "auto" | "game_root" | `method:${string}`;
+export interface InstallGuide {
+  readonly game_id: string;
+  readonly name: string;
+  readonly checked_at: string;
+  readonly notes: readonly string[];
+  readonly sources: readonly string[];
+  readonly methods: readonly {
+    readonly id: string;
+    readonly label: string;
+    readonly versions: readonly string[];
+    readonly format: string;
+    readonly destination: string;
+    readonly requirements: readonly string[];
+    readonly source_urls: readonly string[];
+    readonly can_install: boolean;
+    readonly install_mode: InstallMode | null;
+  }[];
+}
 export interface ModDetails {
   readonly name: string;
   readonly author: string | null;

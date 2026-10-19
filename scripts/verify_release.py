@@ -6,6 +6,7 @@ import sys
 import zipfile
 from pathlib import Path, PurePosixPath
 
+from py_modules.decky_mods.package_layout import REQUIRED_FILES
 from scripts.sanitize import check
 
 
@@ -21,26 +22,9 @@ def verify(path: Path) -> None:
                 raise ValueError("Unexpected ZIP member")
             if (item.external_attr >> 16) & 0o170000 != 0o100000:
                 raise ValueError("Non-regular ZIP member")
-        required = {
-            "main.py",
-            "plugin.json",
-            "package.json",
-            "dist/index.js",
-            "LICENSE",
-            "README.md",
-            "THIRD_PARTY_NOTICES.md",
-            "data/games.json",
-            "assets/update-allowed-signers",
-            "py_modules/libarchive/__init__.py",
-            "py_modules/libarchive/ffi.py",
-            "py_modules/decky_mods/service.py",
-            "py_modules/decky_mods/nxm_helper.py",
-            "licenses/libarchive-c-LICENSE",
-            "licenses/decky-api-LICENSE",
-            "licenses/react-icons-LICENSE",
-            "licenses/tslib-LICENSE",
-        }
-        if not {"DeckyMods/" + name for name in required} <= set(names):
+        if not {"DeckyMods/" + name for name in REQUIRED_FILES} <= set(names) or any(
+            archive.getinfo("DeckyMods/" + name).file_size == 0 for name in REQUIRED_FILES
+        ):
             raise ValueError("Incomplete plugin ZIP")
         plugin = json.loads(archive.read("DeckyMods/plugin.json"))
         package = json.loads(archive.read("DeckyMods/package.json"))

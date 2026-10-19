@@ -8,6 +8,7 @@
 | 1 | v0.2.5 | clear recovered update status errors | UpdatePanel 11项、类型检查、通用及TS复审通过；先红后绿 |
 | 2 | v0.2.6 | 更新重启检查与设置保存一致性 | updates 53项、Ruff、通用及Python复审通过；先红后绿 |
 | 3 | v0.2.7 | 阻止过期账号绑定请求覆盖解绑及新账号 | Nexus 23项、Ruff、通用及Python复审通过；并发回归先红后绿 |
+| 4 | v0.2.8 | 统一运行文件清单并拒绝残缺更新包 | updates/release 68项、Ruff、通用及Python复审通过；8项先红后绿 |
 
 发行规则：中间版本作为预发布快照，最终版本通过全部检查后进入正式更新源。
 安装仍由用户通过 Decky 原生确认完成，开发过程不会远程安装。

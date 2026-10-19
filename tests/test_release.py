@@ -9,6 +9,16 @@ from scripts.package import build_zip, vendor_archive
 from scripts.sanitize import inspect_bytes
 
 
+def test_required_runtime_inventory_covers_every_first_party_module():
+    from decky_mods.package_layout import REQUIRED_FILES
+
+    root = Path(__file__).resolve().parents[1]
+    modules = {
+        path.relative_to(root).as_posix() for path in (root / "py_modules/decky_mods").glob("*.py")
+    }
+    assert modules <= REQUIRED_FILES
+
+
 def test_zip_is_reproducible_and_rejects_link_inputs(tmp_path):
     source = tmp_path / "stage"
     source.mkdir()

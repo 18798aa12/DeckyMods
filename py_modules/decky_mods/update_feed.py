@@ -14,6 +14,7 @@ from urllib.parse import urljoin, urlsplit
 
 from .errors import ModsError
 from .network import _PinnedHTTPS
+from .package_layout import REQUIRED_FILES
 from .tls import trusted_context
 
 MAX_MANIFEST = 8192
@@ -263,8 +264,8 @@ def validate_package(data: bytes, manifest: dict, allowed_signers: Path) -> None
                 or package.get("version") != manifest["version"]
             ):
                 raise ValueError
-            for required in ("DeckyMods/main.py", "DeckyMods/dist/index.js"):
-                if archive.getinfo(required).file_size == 0:
+            for required in REQUIRED_FILES:
+                if archive.getinfo("DeckyMods/" + required).file_size == 0:
                     raise ValueError
             # A release signed by the old key must preserve the pinned trust anchor.
             if (

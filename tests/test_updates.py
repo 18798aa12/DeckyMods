@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 from decky_mods.errors import ModsError
+from decky_mods.package_layout import REQUIRED_FILES
 from decky_mods.updates import UpdateManager
 
 
@@ -44,6 +45,14 @@ def package(version="0.1.3", flags=None, extra=None, metadata=None, api_version=
         )
         archive.writestr("DeckyMods/main.py", "# signed backend\n")
         archive.writestr("DeckyMods/dist/index.js", "// signed frontend\n")
+        for name in REQUIRED_FILES - {
+            "plugin.json",
+            "package.json",
+            "main.py",
+            "dist/index.js",
+            "assets/update-allowed-signers",
+        }:
+            archive.writestr("DeckyMods/" + name, "# synthetic runtime fixture\n")
         if extra:
             archive.writestr(extra, "not allowed")
     return output.getvalue()
@@ -96,6 +105,31 @@ def test_restart_checks_again_when_available_manifest_was_only_in_memory(
     assert update.check()["available"]
     reopened = UpdateManager(signing[0], update.directory, "0.1.2")
     assert reopened.check_due()
+
+
+@pytest.mark.parametrize(
+    "missing",
+    [
+        "py_modules/decky_mods/service.py",
+        "py_modules/decky_mods/re_setup.py",
+        "py_modules/libarchive/read.py",
+        "data/games.json",
+    ],
+)
+@pytest.mark.parametrize("empty", [False, True])
+def test_signed_package_missing_runtime_is_rejected(tmp_path, signing, monkeypatch, missing, empty):
+    original = io.BytesIO(package())
+    output = io.BytesIO()
+    target = "DeckyMods/" + missing
+    with zipfile.ZipFile(original) as source, zipfile.ZipFile(output, "w") as archive:
+        for entry in source.infolist():
+            if entry.filename != target:
+                archive.writestr(entry, source.read(entry))
+        if empty:
+            archive.writestr(target, b"")
+    update, _ = manager(tmp_path, signing, monkeypatch, content=output.getvalue())
+    with pytest.raises(ModsError, match="结构"):
+        update.prepare()
 
 
 def test_failed_settings_save_preserves_live_and_persisted_preferences(

@@ -64,7 +64,7 @@ class Service:
         self.launch_options = LaunchOptions(directory / "launch-options")
         self.resident = RESettings(directory / "resident-settings")
         self.updates = UpdateManager(
-            plugin_dir, directory / "updates", "0.2.11", source=GITHUB_SOURCE
+            plugin_dir, directory / "updates", "0.2.12", source=GITHUB_SOURCE
         )
         self.downloads = directory / "downloads"
         private_directory(self.downloads)
@@ -74,7 +74,7 @@ class Service:
 
     def get_status(self) -> dict:
         return {
-            "version": "0.2.11",
+            "version": "0.2.12",
             "platform_supported": platform.system() == "Linux",
             "auth": self.nexus.status(),
             "jobs": self.get_jobs(),
@@ -270,26 +270,32 @@ class Service:
             if selected["nexus_domain"] != grant["domain"]:
                 raise ModsError("NXM 链接与所选游戏不同，请切换到对应游戏")
         with self.lock:
+            discovered = self.list_games()
+            by_id = {game["id"]: game for game in discovered}
             matches = [
                 job
                 for job in self.jobs.list()
-                if job["phase"] == "awaiting_browser"
+                if job["phase"] not in {"failed", "cancelled", "complete"}
                 and self.jobs.get(job["id"]).get("identity")
                 == {"mod_id": grant["mod_id"], "file_id": grant["file_id"]}
-                and self.get_game(job["game_id"])["game"]["nexus_domain"] == grant["domain"]
+                and by_id.get(job["game_id"], {}).get("nexus_domain") == grant["domain"]
             ]
+            if len(matches) > 1:
+                raise ModsError("此文件对应多个游戏任务，请先取消多余任务再确认下载")
             if matches:
                 job = matches[0]
-                game = self.roots.resolve(job["game_id"])
                 if install_mode == "game_root" and (
-                    game["id"] != expected_game_id
+                    job["game_id"] != expected_game_id
                     or self.jobs.get(job["id"]).get("install_mode", "auto") != install_mode
                 ):
                     raise ModsError("此下载任务的安装模式不同，请先取消原任务")
+                if job["phase"] != "awaiting_browser":
+                    return job
+                game = self.roots.resolve(job["game_id"])
             else:
                 games = [
                     game
-                    for game in self.list_games()
+                    for game in discovered
                     if game["nexus_domain"] == grant["domain"] and game["installed"]
                 ]
                 if len(games) != 1:

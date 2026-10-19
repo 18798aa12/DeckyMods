@@ -7,7 +7,6 @@ import os
 import re
 import stat
 import threading
-from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -20,43 +19,66 @@ _LIMIT = 32768
 _MOD_ID = re.compile(r"[a-f0-9]{32}\Z")
 _BBCODE = re.compile(
     r"\[/?(?:b|i|u|s|size|color|font|url|quote|code|list|\*|spoiler|center|left|right|heading)"
-    r"(?:=[^\]\r\n]{0,2048})?\]",
+    r"(?:=[^\[\]\r\n]{0,2048})?\]",
     re.IGNORECASE,
 )
 _FIELDS = ("name", "description", "author", "version")
 
 
-class _PlainText(HTMLParser):
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self.parts: list[str] = []
-        self.hidden = 0
+_TOKENS = re.compile(r"<[^<>]*>|\[/?img(?:=[^\[\]\r\n]{0,2048})?\]", re.I)
+_TAG = re.compile(r"<(/?)([a-z][a-z0-9:-]*)(?:\s[^<>]*|/?)>", re.I)
+_HIDDEN = {"script", "style", "iframe", "svg"}
+_BLOCK = {"p", "br", "div", "li", "h1", "h2", "h3"}
 
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag in {"script", "style", "iframe", "svg"}:
-            self.hidden += 1
-        elif tag in {"p", "br", "div", "li", "h1", "h2", "h3"} and not self.hidden:
-            self.parts.append("\n")
 
-    def handle_endtag(self, tag: str) -> None:
-        if tag in {"script", "style", "iframe", "svg"} and self.hidden:
-            self.hidden -= 1
-        elif tag in {"p", "div", "li", "h1", "h2", "h3"} and not self.hidden:
-            self.parts.append("\n")
-
-    def handle_data(self, data: str) -> None:
-        if not self.hidden:
-            self.parts.append(data)
+def _markup_text(value: str) -> str:
+    """Tokenize bounded text in one pass without optional frozen stdlib modules."""
+    parts: list[str] = []
+    hidden: list[str] = []
+    cursor = 0
+    for match in _TOKENS.finditer(value):
+        if not hidden:
+            parts.append(value[cursor : match.start()])
+        token = match[0]
+        tag = _TAG.fullmatch(token) if token.startswith("<") else None
+        if hidden and hidden[-1] in {"script", "style"}:
+            # Raw script/style text may contain quoted markup: only its own end
+            # tag ends the hidden region, so strings cannot hide later notes.
+            if tag and tag[1] and tag[2].lower() == hidden[-1]:
+                hidden.pop()
+        elif token.startswith("["):
+            if not hidden or hidden[-1] == "bb-img":
+                if token.startswith("[/"):
+                    if hidden:
+                        hidden.pop()
+                else:
+                    hidden.append("bb-img")
+        elif hidden and hidden[-1] == "bb-img":
+            pass
+        elif tag:
+            name = tag[2].lower()
+            if name in _HIDDEN:
+                if tag[1]:
+                    if hidden and hidden[-1] == name:
+                        hidden.pop()
+                elif not token.rstrip().endswith("/>"):
+                    hidden.append(name)
+            elif name in _BLOCK and not hidden:
+                parts.append("\n")
+        elif not hidden:
+            # Non-tags such as "2 < 3 and 4 > 1" remain literal React text.
+            parts.append(token)
+        cursor = match.end()
+    if not hidden:
+        parts.append(value[cursor:])
+    return "".join(parts)
 
 
 def _plain(value: object, limit: int = _LIMIT) -> str:
     if not isinstance(value, str):
         return ""
     value = html.unescape(value[: _LIMIT * 2])
-    value = re.sub(r"\[img(?:=[^\]]*)?\].*?\[/img\]", "", value, flags=re.I | re.S)
-    parser = _PlainText()
-    parser.feed(value)
-    value = _BBCODE.sub("", "".join(parser.parts))
+    value = _BBCODE.sub("", _markup_text(value))
     value = "".join(
         char
         for char in value

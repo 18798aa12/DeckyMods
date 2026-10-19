@@ -68,7 +68,7 @@ class NexusClient:
         return {
             "apikey": credential,
             "Application-Name": "DeckyMods",
-            "Application-Version": "0.2.1",
+            "Application-Version": "0.2.2",
             "Protocol-Version": "1.0.0",
             "Accept": "application/json",
         }

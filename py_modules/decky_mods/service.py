@@ -56,7 +56,7 @@ class Service:
         self.launch_options = LaunchOptions(directory / "launch-options")
         self.resident = RESettings(directory / "resident-settings")
         self.updates = UpdateManager(
-            plugin_dir, directory / "updates", "0.2.1", source=GITHUB_SOURCE
+            plugin_dir, directory / "updates", "0.2.2", source=GITHUB_SOURCE
         )
         self.downloads = directory / "downloads"
         private_directory(self.downloads)
@@ -66,7 +66,7 @@ class Service:
 
     def get_status(self) -> dict:
         return {
-            "version": "0.2.1",
+            "version": "0.2.2",
             "platform_supported": platform.system() == "Linux",
             "auth": self.nexus.status(),
             "jobs": self.get_jobs(),

@@ -1,8 +1,8 @@
 # DeckyMods
 
-SteamOS / Steam Deck 上的 Decky MOD 管理插件。当前版本 **0.2.1，个人测试预览版**。
+SteamOS / Steam Deck 上的 Decky MOD 管理插件。当前版本 **0.2.2，个人测试预览版**。
 
-[下载最新安装包](https://github.com/18798aa12/DeckyMods/releases/latest/download/DeckyMods-v0.2.1.zip) · [发布记录](https://github.com/18798aa12/DeckyMods/releases)
+[下载最新安装包](https://github.com/18798aa12/DeckyMods/releases/latest/download/DeckyMods-v0.2.2.zip) · [发布记录](https://github.com/18798aa12/DeckyMods/releases)
 
 本轮专注生化危机：默认显示 RE0 至 RE9 的 13 款 Steam 作品，包括 HD、重制版与启示录。提供 MOD 查询/导入、安装预览、冲突确认、启用、禁用、卸载、前置状态和中断恢复。
 
@@ -22,7 +22,7 @@ SteamOS / Steam Deck 上的 Decky MOD 管理插件。当前版本 **0.2.1，个�
 
 ## 安装与添加 MOD
 
-1. 安装 Decky Loader，在 Decky 设置的开发者选项里选择“从 ZIP 安装插件”，选完整 `DeckyMods-v0.2.1.zip`。不要单独拷贝 `main.py`。插件不申请 root 权限。
+1. 安装 Decky Loader，在 Decky 设置的开发者选项里选择“从 ZIP 安装插件”，选完整 `DeckyMods-v0.2.2.zip`。不要单独拷贝 `main.py`。插件不申请 root 权限。
 2. 打开 DeckyMods，扫描 Steam 游戏库并选择游戏。支持 Steam 主库和在库清单中登记的 SD 卡库。
 3. 已有压缩包：在“添加 MOD”选择本地压缩包，文件放在当前用户的下载、文档或桌面目录（支持 XDG 配置）。先看安装预览，再确认。
 4. 下载 Nexus MOD：在账户区域打开 Nexus 登录和 API Access 页面，找到 Personal API Key 区域（普通会员也可生成），再将**个人 API Key**输入插件绑定。插件不接收 Nexus 密码或浏览器 Cookie。
@@ -96,7 +96,7 @@ python3 -m venv .venv
 .venv/bin/python -m pytest --cov=decky_mods
 .venv/bin/ruff check main.py py_modules scripts tests
 .venv/bin/python -m scripts.package
-.venv/bin/python -m scripts.verify_release release/DeckyMods-v0.2.1.zip
+.venv/bin/python -m scripts.verify_release release/DeckyMods-v0.2.2.zip
 ```
 
 构建输入在 `data/dependencies.json` 固定版本及 SHA256；输出安装 ZIP、对应源码包和 SHA256SUMS。测试使用合成的游戏目录，不修改真实游戏或下载第三方 MOD。实机检查步骤见 [测试清单](docs/STEAM_DECK_TESTING.md)。

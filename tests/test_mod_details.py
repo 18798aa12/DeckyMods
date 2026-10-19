@@ -1,4 +1,8 @@
 import json
+import os
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 from decky_mods.errors import ModsError
@@ -317,3 +321,64 @@ def test_unexpected_request_failure_retains_local_text(details, monkeypatch):
 def test_remember_rejects_non_object(details):
     with pytest.raises(ModsError):
         details[0].remember(MOD_ID, ["bad"])
+
+
+def test_frozen_runtime_can_import_service_without_html_parser():
+    root = Path(__file__).resolve().parents[1]
+    environment = {**os.environ, "PYTHONPATH": str(root / "py_modules")}
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; sys.modules['html.parser'] = None; "
+                "from decky_mods.service import Service; "
+                "assert Service.__name__ == 'Service'"
+            ),
+        ],
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(
+    "markup,expected",
+    [
+        ("<P>First</P><div>Second<br>Third</div>", "First\n\nSecond\nThird"),
+        ("before<script>secret", "before"),
+        ("before<style>secret", "before"),
+        ("before<iframe>secret", "before"),
+        ("before<svg>secret", "before"),
+        ("before<script>const s = '<style>'; </script>after", "beforeafter"),
+        ("before<svg><svg>secret</svg>hidden</svg>after", "beforeafter"),
+        ("before[img]https://tracker.invalid/x", "before"),
+        ("<span>Visible</span> <broken", "Visible <broken"),
+        ("2 < 3 and 4 > 1", "2 < 3 and 4 > 1"),
+        ("<unknown>Visible</unknown>", "Visible"),
+        ("[b]Title[/b] &amp; &#x4E2D;", "Title & 中"),
+    ],
+)
+def test_plain_text_without_html_parser_handles_malformed_markup(markup, expected):
+    from decky_mods.mod_details import _plain
+
+    assert _plain(markup) == expected
+
+
+def test_plain_text_hostile_unterminated_tokens_remain_bounded():
+    from decky_mods.mod_details import _plain
+
+    value = "[img]" * 7000 + "<" * 33000
+    result = _plain(value)
+    assert result == ""
+    assert len(_plain("visible" * 20000)) <= 32768
+
+
+def test_whitespace_non_tag_is_literal_and_bounded():
+    from decky_mods.mod_details import _plain
+
+    value = "<" + " " * 60000 + ">"
+    assert _plain(value) == value[:32768]

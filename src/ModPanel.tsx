@@ -60,7 +60,9 @@ function ModItem({ view, mod, busy, run, onView }: ItemProps) {
     return () => element?.removeEventListener("vgp_oncancel", cancel);
   }, [confirm, visible]);
   const disabled =
-    busy || view.game.running || view.game.updating || Boolean(view.recovery_error);
+    busy || !view.game.installed || !view.game.path?.startsWith("/") ||
+    Boolean(view.game.root_error) || view.game.running || view.game.updating ||
+    Boolean(view.recovery_error);
   const sourceUrl = details?.source_url || mod.source_url;
   return (
     <Focusable ref={boundary}>

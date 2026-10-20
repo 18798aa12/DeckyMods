@@ -14,6 +14,15 @@ import { SourcePanel } from "./SourcePanel";
 import { mergeJob, safeError } from "./state";
 import { styles } from "./styles";
 import type { Game, GameView, Job, RunAction, Status } from "./types";
+
+function sameInstallation(left: Game, right: Game): boolean {
+  const identity = (game: Game): string => JSON.stringify([
+    game.id, game.installed, game.path, game.app_id, game.build_id,
+    game.adapter, game.nexus_domain, Boolean(game.manual_root), game.root_error || null,
+  ]);
+  return identity(left) === identity(right);
+}
+
 export function App() {
   const [status, setStatus] = useState<Status | null>(null);
   const [games, setGames] = useState<readonly Game[]>([]);
@@ -88,7 +97,11 @@ export function App() {
       setSelectedId("");
       setView(null);
     } else {
-      setView((current) => current?.game.id === id ? { ...current, game: selected } : current);
+      setView((current) => {
+        if (current?.game.id !== id) return current;
+        if (selected.installed && selected.path && !sameInstallation(current.game, selected)) return null;
+        return { ...current, game: selected };
+      });
     }
   }, []);
   useEffect(() => {
@@ -115,7 +128,21 @@ export function App() {
           if (nextStatus.status === "fulfilled") setStatus(nextStatus.value);
           if (nextGames.status === "fulfilled") updateGames(nextGames.value);
           if (selectedRef.current === gameId) {
-            if (nextView.status === "fulfilled" && nextView.value) updateView(nextView.value);
+            if (nextView.status === "fulfilled" && nextView.value) {
+              const next = nextView.value;
+              const scanned = nextGames.status === "fulfilled"
+                ? nextGames.value.find((game) => game.id === gameId) : undefined;
+              if (nextGames.status === "fulfilled") {
+                // Concurrent reads may observe different installations. Wait for
+                // agreement instead of combining old MODs with a new directory.
+                if (!scanned || !sameInstallation(next.game, scanned)) setView(null);
+                else updateView({ ...next, game: {
+                  ...scanned,
+                  running: scanned.running || next.game.running,
+                  updating: Boolean(scanned.updating || next.game.updating),
+                } });
+              } else updateView(next);
+            }
             if (nextView.status === "rejected") setView(null);
           }
           const failed = [nextStatus, nextGames, nextView].find((result) => result.status === "rejected");

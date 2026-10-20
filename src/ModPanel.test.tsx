@@ -21,6 +21,24 @@ const expand = () => { fireEvent.click(screen.getByRole("button", { name: "展�
 beforeEach(() => { mocks.getModDetails.mockResolvedValue(details); mocks.setModEnabled.mockResolvedValue(view); mocks.uninstallMod.mockResolvedValue(view); });
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
 describe("lazy folded installed MOD descriptions", () => {
+  it.each([
+    { installed: false },
+    { path: null },
+    { root_error: "游戏目录已断开" },
+  ])("blocks MOD writes when the installation becomes unavailable: %j", async (change) => {
+    const rendered = renderPanel(); expand();
+    await screen.findByText(/第一行说明/);
+    fireEvent.click(screen.getByRole("button", { name: "卸载 MOD" }));
+    rendered.rerender(<ModPanel view={{ ...view, game: { ...view.game, ...change } }} busy={false} run={run} onView={vi.fn()} />);
+    for (const name of ["禁用 MOD", "卸载 MOD", "确认卸载“测试 MOD”"]) {
+      const button = screen.getByRole("button", { name }) as HTMLButtonElement;
+      expect(button.disabled).toBe(true);
+      fireEvent.click(button);
+    }
+    expect(mocks.setModEnabled).not.toHaveBeenCalled();
+    expect(mocks.uninstallMod).not.toHaveBeenCalled();
+    expect((screen.getByRole("button", { name: "刷新 MOD 说明" }) as HTMLButtonElement).disabled).toBe(false);
+  });
   it("does not fetch until the individual MOD is expanded", async () => {
     renderPanel();
     expect(mocks.getModDetails).not.toHaveBeenCalled();
